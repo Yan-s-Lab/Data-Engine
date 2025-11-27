@@ -1,0 +1,40 @@
+Step 1. Data Collection
+    ├── Manual Upload (你本地已有的 injection dataset)
+    ├── Spider (可选：从 pubmed / 文章 / open dataset 抓图片)
+    └── Robot/Video (暂时不做，用 stub)
+
+Step 2. Mine (初筛)
+    ├── 去重（hash）
+    ├── 基础质量检查（分辨率 / 是否损坏）
+    └── 随机抽样 N 张 → candidate set
+
+Step 3. Filter-1 (AI-Based Filtering)
+    ├── CLIP embedding + 相似度聚类
+    ├── 高维特征 t-SNE / UMAP 可视化（前端展示）
+    └── 手动点选 “留下/删除” 样本
+
+Step 4. Labeling Integration
+    ├── Label Studio docker
+    ├── Gateway 自动同步 sample list → Label Studio
+    └── 拉回 segmentation mask → dataset_version_1
+
+Step 5. Synthetic Generation (Augment)
+    ├── 调 ComfyUI 的 workflow（API）
+    ├── Guidance 对齐手臂姿态 / 摄像机角度
+    ├── Flux/R1-synthetic + controlnet
+    ├── Filter-2: 质量过滤（CLIP / “pose alignment”）
+    └── 合成数据 → dataset_version_2
+
+Step 6. Training
+    ├── YOLOv11n-seg
+    ├── dataset_version_2.json → train
+    └── 输出 best.pt + metrics
+
+Step 7. Evaluation
+    ├── 在 real-val 上评估
+    ├── hard-cases mining（loss 高 / IoU 低）
+    └── need_review = True → 返回 Label Studio
+
+Step 8. HITL Loop
+    ├── 人工修正 hard cases
+    └── dataset_version_3 → 再训 → 再评估 → 往复
