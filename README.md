@@ -207,7 +207,12 @@ conda activate open_data_engine
 # 第一次创建环境后使用一次 pip，安装 uv！！后续统一用 uv 管理安装
 pip install uv
 
-# 安装项目依赖
+# 安装依赖
+uv pip install -r requirements.txt
+
+
+# -----------------------------
+# 把 Data-Engine 这个项目装进环境里。-e = editable，可编辑安装（开发模式）
 uv pip install -e .
 
 ```
