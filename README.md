@@ -195,3 +195,19 @@ data-engine/
 │   └── init_db.py                 # 初始化数据库 / 基础表
 │
 └── README.md
+
+
+# Usage 
+
+```bash
+
+conda create -n open_data_engine python=3.10 
+conda activate open_data_engine
+
+# 第一次创建环境后使用一次 pip，安装 uv！！后续统一用 uv 管理安装
+pip install uv
+
+# 安装项目依赖
+uv pip install -e .
+
+```
