@@ -44,7 +44,8 @@ By integrating open-source AI models, OpenDataEngine helps to **reduce data coll
 - [ ] More plugins & tasks
   - [ ] New trainers (other CV tasks, then non-CV tasks)
   - [ ] More data collectors (robotics, AR, logs, etc.)
-
+- [ ] Login authorization layer
+  - [ ]
 ---
 
 ## High-level Architecture (6 Layers)
@@ -219,5 +220,26 @@ uv pip install -r requirements.txt
 # -----------------------------
 # 把 Data-Engine 这个项目装进环境里。-e = editable，可编辑安装（开发模式）
 uv pip install -e .
+
+# ----------------------------
+# uv 管理规范：下载示例，保持 toml 更新和 requirement.txt更新
+# ----------------------------
+# eg: uv 下载 pillow 并 更新 toml 依赖文件
+uv add Pillow
+# eg: 更新 requirements.txt (不固定版本： 普遍">=xxx.xx"形式)
+uv pip install -r requirements.txt 
+# eg: 更新requirements.txt，固定版本的, (普遍"=xxx.xx"形式)
+uv export --no-hashes --format requirements-txt > requirements.txt
+
+
+
+# ----------------------------
+# 镜像里面的依赖，如果在本地更新了，需要重新 docker build
+# ----------------------------
+# 例如本地开发途中，我们有依赖更新了，那么此时由于我们当前的./infra/docker-compose.yml中配置的挂载只有开发的文件夹，但是没有包含依赖，所以下一次启动需要按照如下操作
+docker compose up --build
+
+# 如果只是普通更新，代码更新，按照我们的配置，只需要
+docker compose up
 
 ```

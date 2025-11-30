@@ -1,7 +1,8 @@
 # libs/core_db/models/collection.py
 from __future__ import annotations  # 建议加上，前向引用更稳
 from datetime import datetime
-from sqlalchemy import Integer, String, DateTime, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 from libs.core_db.db import Base
@@ -22,6 +23,8 @@ class CollectionRun(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now
     )
+    # 新增：run 级别 meta
+    meta = Column(JSONB, nullable=False, server_default="{}")
 
     # 外键依赖
     # samples: Mapped[list["RawSample"]] = relationship(back_populates="collection") 

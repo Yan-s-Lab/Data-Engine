@@ -20,6 +20,8 @@ def create_collection(
         description=payload.description,
         source_type=payload.source_type,
         created_at=datetime.now(),
+        meta=payload.meta,
+
     )
 
     # ✅ 2. 持久化到数据库

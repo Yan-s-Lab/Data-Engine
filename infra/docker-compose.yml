@@ -21,7 +21,7 @@ services:
       DATABASE_URL: postgresql+psycopg2://dataengine:dataengine@postgres:5432/dataengine # 告诉应用去连 同一个 compose 里的 postgres 服务，主机名：postgres
       STORAGE_ROOT: /data/raw
     volumes:
-      - ../services/collection-gateway/app:/app/app # 现在不需要 build 就默认挂载了，之前需要 build 才能更新！！！
+      - ../services/collection-gateway/app:/app/app # 现在不需要 build 就默认挂载了，之前需要 build 才能更新！！！，但是安装了依赖就必须重新 build了
       - ../libs:/app/libs                 # 把 宿主机器的"../libs" 挂进容器 /app/libs   
       - ../data/raw:/data/raw             # 原始图片目录（你根目录下建个 data/raw 目录）——这才是存放大的原始文件的地方
     depends_on:
