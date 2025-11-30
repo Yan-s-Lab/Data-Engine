@@ -24,31 +24,43 @@ from collectors.common.client import (  # type: ignore
 def download_image(url: str, out_dir: Path, timeout: int = 20) -> Optional[Path]:
     """
     下载单张图片到 out_dir，返回文件路径。
-    文件名使用 uuid，保留 URL 中的扩展名（如果有）。
+    文件名使用 uuid，根据 Content-Type 或 URL 猜测扩展名。
     """
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 尝试从 URL 提取扩展名
-    ext = ""
-    try:
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        name = os.path.basename(parsed.path)
-        if "." in name:
-            ext_candidate = name.rsplit(".", 1)[-1]
-            if 0 < len(ext_candidate) <= 5:
-                ext = "." + ext_candidate
-    except Exception:
-        pass
-
-    if not ext:
-        ext = ".bin"
-
-    fname = f"{uuid.uuid4().hex}{ext}"
+    # 先请求
     resp = requests.get(url, timeout=timeout)
     resp.raise_for_status()
 
+    # 1) 优先根据 Content-Type 判断
+    content_type = resp.headers.get("Content-Type", "").lower()
+    ext = ""
+    if "jpeg" in content_type or "jpg" in content_type:
+        ext = ".jpg"
+    elif "png" in content_type:
+        ext = ".png"
+    elif "webp" in content_type:
+        ext = ".webp"
+
+    # 2) 如果 Content-Type 看不出来，再从 URL 里猜
+    if not ext:
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(url)
+            name = os.path.basename(parsed.path)
+            if "." in name:
+                ext_candidate = name.rsplit(".", 1)[-1]
+                if 0 < len(ext_candidate) <= 5:
+                    ext = "." + ext_candidate
+        except Exception:
+            pass
+
+    # 3) 还是没有就兜底成 .jpg（因为我们就是图片 spider）
+    if not ext:
+        ext = ".jpg"
+
+    fname = f"{uuid.uuid4().hex}{ext}"
     out_path = out_dir / fname
     out_path.write_bytes(resp.content)
     return out_path

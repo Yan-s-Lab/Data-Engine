@@ -221,6 +221,11 @@ uv pip install -r requirements.txt
 # 把 Data-Engine 这个项目装进环境里。-e = editable，可编辑安装（开发模式）
 uv pip install -e .
 
+
+
+# 环境变量，如果 docker 没有专门修改端口，端口开启正常的话，默认按照下列配置
+export COLLECTION_GATEWAY_URL=http://localhost:8001/
+
 # ----------------------------
 # uv 管理规范：下载示例，保持 toml 更新和 requirement.txt更新
 # ----------------------------

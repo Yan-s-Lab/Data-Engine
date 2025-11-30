@@ -1,4 +1,4 @@
-from libs.core_db.session import engine, Base
+from libs.core_db.db import engine, Base
 from libs.core_db import models  # noqa: F401  触发表加载
 
 

@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 import os
 import requests
 
+# 注意检查COLLECTION_GATEWAY_URL变量，必须要配置
 GATEWAY_URL = os.getenv("COLLECTION_GATEWAY_URL", "http://localhost:8001")
 
 
@@ -34,8 +35,24 @@ def create_collection_run(
         "meta": meta or {},
     }
 
-    resp = requests.post(f"{GATEWAY_URL}/collections/", json=payload, timeout=30)
-    resp.raise_for_status()
+    # debug
+    url = f"{GATEWAY_URL}/collections/"
+    print(f"[DEBUG] POST {url}")
+    print(f"[DEBUG] payload = {payload}")
+
+    try:
+        resp = requests.post(url, json=payload, timeout=30)
+        print(f"[DEBUG] status_code = {resp.status_code}")
+        print(f"[DEBUG] raw response = {resp.text}")
+        resp.raise_for_status()
+    except requests.HTTPError as e:
+        print("[ERROR] create_collection_run failed")
+        # print(f"status: {resp.status_code}")
+        # print(f"body  : {resp.text}")
+        raise
+
+    # resp = requests.post(f"{GATEWAY_URL}/collections/", json=payload, timeout=30)
+    # resp.raise_for_status()
     data = resp.json()
     return data  # 或者直接 return data，看你习惯
 

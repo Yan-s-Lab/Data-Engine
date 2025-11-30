@@ -1,0 +1,30 @@
+run_name: "deltoid_synthetic_2025_11_30"
+out_dir: "./tmp_generation_runs"
+
+backends:
+  - name: "local_comfy"
+    type: "comfyui"
+    base_url: "http://127.0.0.1:8188"
+    workflow_file: "./workflows/deltoid_workflow.json"
+    concurrency: 2
+    num_images: 20
+    prompt_template: "deltoid injection training view, seed={seed}"
+    seed_start: 1
+
+  - name: "remote_comfy"
+    type: "comfyui"
+    base_url: "http://10.0.0.5:8188"
+    workflow_file: "./workflows/deltoid_workflow_remote.json"
+    concurrency: 4
+    num_images: 40
+    prompt_template: "deltoid injection training view, remote backend, seed={seed}"
+    seed_start: 1000
+
+  - name: "local_pipeline"
+    type: "diffusers"
+    model_id: "stabilityai/sdxl-turbo"
+    device: "cuda:0"
+    concurrency: 2
+    num_images: 10
+    prompt_template: "deltoid injection training view, pure diffusers pipeline, seed={seed}"
+    seed_start: 2000

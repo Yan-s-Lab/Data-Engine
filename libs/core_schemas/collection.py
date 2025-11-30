@@ -28,17 +28,10 @@ class CollectionRunCreate(CollectionRunBase):
 # API 输出
 class CollectionRunOut(BaseModel):
     id: int
-    name: str
-    description: Optional[str]
-    source_type: SourceType
+    # name: str
+    # description: Optional[str]
+    # source_type: SourceType
     created_at: datetime
     class Config:
         from_attributes = True   # SQLAlchemy → Pydantic ：直接让 FastAPI 帮忙“从 ORM 转 schema”，不用担心类型报错
 
-
-
-class CollectionRunRead(CollectionRunBase):
-    id: int
-
-    class Config:
-        orm_mode = True
