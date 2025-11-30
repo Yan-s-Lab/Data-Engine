@@ -99,7 +99,7 @@ data-engine/
 │   │   │   ├── main.py
 │   │   │   ├── api/
 │   │   │   │   ├── collections.py   # 创建 collection_run
-│   │   │   │   └── samples.py       # 上传/登记 raw_sample
+│   │   │   │   └── samples.py       # 上传/登记 raw_sample，单个样本
 │   │   │   ├── schemas/             # RawSample, CollectionRun
 │   │   │   └── storage/             # 本地/MinIO 抽象
 │   │   ├── tests/
@@ -169,15 +169,20 @@ data-engine/
 │       └── extract_frames_and_push.py
 │
 ├── libs/                          # 共享代码（避免各服务 copy-paste）
-│   ├── core-db/
-│   │   ├── models/                # SQLAlchemy 模型
-│   │   ├── session.py
-│   │   └── migrations/            # Alembic
+│   ├── core_db/
+│   │   └── __init__.py
+│   │   └── db.py                # Engine / SessionLocal / Base
+│   │   └── deps.py              # FastAPI 里用的 get_db 依赖
+│   │   └── models/
+│   │   │   └── __init__.py        # 汇总导出所有 ORM 模型
+│   │   │   └── collection.py      # Collection 相关表
+│   │   │   └── sample.py          # Sample 相关表
+│   │   │   └── # …未来可以继续拆 user.py, job.py 等
 │   ├── core-schemas/              # Pydantic 模型（RawSample, Dataset, Model, Task...）
 │   ├── core-queue/                # 队列封装（Redis/RQ 或 Celery）
 │   └── core-storage/              # 本地 / MinIO / S3 客户端
 │
-├── infra/
+├── infra/                         # infrastructure 基础设施：所有服务共同依赖的基础设施 + 部署文件 （多服务架构的表现）
 │   ├── docker-compose.yml         # 一键启动所有服务和基础设施
 │   ├── env/                       # .env 模板
 │   │   ├── .env.gateway

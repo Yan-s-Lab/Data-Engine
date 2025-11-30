@@ -6,7 +6,7 @@ from typing import BinaryIO
 STORAGE_ROOT = Path(os.getenv("STORAGE_ROOT", "/data/raw"))
 
 
-def save_file(collection_id: int, filename: str, file: BinaryIO) -> str:
+def save_file(collection_id: int, filename: str, content: bytes) -> str:
     """
     保存文件到本地目录，返回相对路径字符串
     """
@@ -15,6 +15,6 @@ def save_file(collection_id: int, filename: str, file: BinaryIO) -> str:
     target_path = target_dir / filename
 
     with open(target_path, "wb") as f:
-        f.write(file.read())
+        f.write(content)
 
     return str(target_path)

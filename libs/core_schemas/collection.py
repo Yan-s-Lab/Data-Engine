@@ -6,24 +6,19 @@ from pydantic import BaseModel
 SourceType = Literal["manual", "spider", "robot", "video"]
 
 
+# API 输入
 class CollectionRunCreate(BaseModel):
     name: str
     description: Optional[str] = None
     source_type: SourceType = "manual"
 
 
-class CollectionRun(BaseModel):
+# API 输出
+class CollectionRunOut(BaseModel):
     id: int
     name: str
     description: Optional[str]
     source_type: SourceType
     created_at: datetime
-
-
-class RawSampleCreate(BaseModel):
-    collection_run_id: int
-    source_type: SourceType
-    file_name: str
-    file_path: str
-    timestamp: datetime
-    meta: Dict[str, Any] = {}
+    class Config:
+        from_attributes = True   # SQLAlchemy → Pydantic ：直接让 FastAPI 帮忙“从 ORM 转 schema”，不用担心类型报错

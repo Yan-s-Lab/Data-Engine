@@ -1,28 +1,31 @@
-version: "3.9"
-
 services:
+
+  # 元数据库容器，存放键值对，索引关系的（轻量级存储，无法存储大的原始文件）
   postgres:
     image: postgres:15
     environment:
       POSTGRES_USER: dataengine
       POSTGRES_PASSWORD: dataengine
       POSTGRES_DB: dataengine
+    # ports:
+    #   - "5432:5432"
     volumes:
-      - ./infra/postgres/data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - ./postgres/data:/var/lib/postgresql/data # 数据库数据挂在在本地当前docker文件的相对目录下的/postgres/data
 
+  # collection-gateway容器
   collection-gateway:
     build:
-      context: ./services/collection-gateway
+      context: ..  # ⬅️ 构建上下文是仓库根目录 Data-Engine（ = dockerfile字段的 base-path）
+      dockerfile: services/collection-gateway/Dockerfile # 查找当前目录的Dockerfile构建配置
     environment:
-      DATABASE_URL: postgresql+psycopg2://dataengine:dataengine@postgres:5432/dataengine
+      DATABASE_URL: postgresql+psycopg2://dataengine:dataengine@postgres:5432/dataengine # 告诉应用去连 同一个 compose 里的 postgres 服务，主机名：postgres
       STORAGE_ROOT: /data/raw
     volumes:
-      - ./data/raw:/data/raw
-      - ./libs:/app/libs
+      - ../services/collection-gateway/app:/app/app # 现在不需要 build 就默认挂载了，之前需要 build 才能更新！！！
+      - ../libs:/app/libs                 # 把 宿主机器的"../libs" 挂进容器 /app/libs   
+      - ../data/raw:/data/raw             # 原始图片目录（你根目录下建个 data/raw 目录）——这才是存放大的原始文件的地方
     depends_on:
       - postgres
     ports:
-      - "8001:8000"
+      - "8001:8000" # 容器内是监听8001，本地是 8000
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
