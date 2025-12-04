@@ -51,3 +51,7 @@ for i in $(seq 0 $((MODEL_COUNT - 1))); do
 done
 
 echo "🎉 所有模型已下载/更新完毕！"
+
+
+# TODO 要注意处理重复的 weights，例如一些不同workflow依赖存在类似的weights，例如 ae.safetensors、clip.safetensors...
+# 存在重复下载问题！！！
