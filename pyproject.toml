@@ -8,6 +8,7 @@ dependencies = [
     "alembic>=1.17.2",
     "fastapi>=0.122.0",
     "huggingface-hub[cli]>=1.1.6",
+    "minio>=7.2.7",
     "pillow>=12.0.0",
     "psycopg2-binary>=2.9.11",
     "pydantic>=2.0",

@@ -10,7 +10,28 @@ services:
     ports:
       - "8002:5432"
     volumes:
-      - ./postgres/data:/var/lib/postgresql/data # 数据库数据挂在在本地当前docker文件的相对目录下的/postgres/data
+      - ./postgres/data:/var/lib/postgresql/data # 数据库数据挂载在本地当前 docker 文件的相对目录 ./postgres/data
+    # ✅ 健康检查：只有当 dataengine 这个 DB 可连接时才视为 healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dataengine -d dataengine || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+  #  ========= minio对象存储服务，用以存储大型文件 ========= 
+  minio:
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z # 版本随意，可用 latest
+    container_name: dataengine-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web 控制台
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123456
+    volumes:
+      - ../data/minio:/data
+    restart: unless-stopped
 
   #  ======== collection-gateway容器 =========
   collection-gateway:
@@ -18,26 +39,31 @@ services:
       context: ..  # ⬅️ 构建上下文是仓库根目录 Data-Engine（ = dockerfile字段的 base-path）
       dockerfile: services/collection-gateway/Dockerfile # 查找当前目录的Dockerfile构建配置
     environment:
-      DATABASE_URL: postgresql+psycopg2://dataengine:dataengine@postgres:5432/dataengine # 告诉应用去连 同一个 compose 里的 postgres 服务，主机名：postgres
-      STORAGE_ROOT: /data/raw
+      # 告诉应用去连 同一个 compose 里的 postgres 服务，主机名：postgres
+      DATABASE_URL: postgresql+psycopg2://dataengine:dataengine@postgres:5432/dataengine
+      STORAGE_ROOT: /data/raw # FS存储方式，需要淘汰，纯粹依赖于服务器IO稳定性
+      # minio 对象文件存储服务👍
+      MINIO_ENDPOINT: "minio:9000"          # 服务名:端口（容器内部）
+      MINIO_ACCESS_KEY: "admin"             # 前提是 docker compose up -d minio初次启动后，登录页面http://localhost:9001，创建登陆账号
+      MINIO_SECRET_KEY: "admin123456"
+      MINIO_SECURE: "false"                 # http
+      MINIO_BUCKET_RAW: "raw"
+      MINIO_BUCKET_SYNTHETIC: "synthetic"
+      MINIO_BUCKET_MODELS: "models"
     volumes:
-      - ../services/collection-gateway/app:/app/app # 现在不需要 build 就默认挂载了，之前需要 build 才能更新！！！，但是安装了依赖就必须重新 build了
-      - ../libs:/app/libs                 # 把 宿主机器的"../libs" 挂进容器 /app/libs   
-      - ../data/raw:/data/raw             # 原始图片目录（你根目录下建个 data/raw 目录）——这才是存放大的原始文件的地方
+      # ✅ 挂载源码，方便热更新（改代码不重建镜像）
+      - ../services/collection-gateway/app:/app/app
+      - ../libs:/app/libs
+      - ../data/raw:/data/raw
     depends_on:
-      - postgres
+      minio:
+      postgres:
+        # ✅ 等 postgres 变成 healthy 再启动 gateway
+        condition: service_healthy
+      
     ports:
-      - "8001:8000" # 容器内是监听8001，本地是 8000
+      # ✅ 主机 8001 -> 容器 8000（你的 uvicorn 是 8000）
+      - "8001:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-  # ======== ComfyUI 服务（你还可以加入其他的generation工具，例如文本的可以是 LLM） =========
-    comfyui:
-      build:
-        context: ../  # 同样在仓库根目录
-        dockerfile: services/comfyui/Dockerfile
-      ports:
-        - "8188:8188"
-      volumes:
-        - ../data/comfyui/models:/app/models
-        - ../data/comfyui/output:/app/output
-      command: ["/bin/bash", "/app/run_comfyui.sh"]
+    # 可选：让 gateway 挂掉时自动重启
+    # restart: unless-stopped
