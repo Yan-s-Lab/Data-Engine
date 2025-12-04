@@ -1,6 +1,6 @@
 services:
 
-  # 元数据库容器，存放键值对，索引关系的（轻量级存储，无法存储大的原始文件）
+  # ========= 元数据库容器，存放键值对，索引关系的（轻量级存储，无法存储大的原始文件）=========
   postgres:
     image: postgres:15
     environment:
@@ -12,7 +12,7 @@ services:
     volumes:
       - ./postgres/data:/var/lib/postgresql/data # 数据库数据挂在在本地当前docker文件的相对目录下的/postgres/data
 
-  # collection-gateway容器
+  #  ======== collection-gateway容器 =========
   collection-gateway:
     build:
       context: ..  # ⬅️ 构建上下文是仓库根目录 Data-Engine（ = dockerfile字段的 base-path）
@@ -29,3 +29,15 @@ services:
     ports:
       - "8001:8000" # 容器内是监听8001，本地是 8000
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  # ======== ComfyUI 服务（你还可以加入其他的generation工具，例如文本的可以是 LLM） =========
+    comfyui:
+      build:
+        context: ../  # 同样在仓库根目录
+        dockerfile: services/comfyui/Dockerfile
+      ports:
+        - "8188:8188"
+      volumes:
+        - ../data/comfyui/models:/app/models
+        - ../data/comfyui/output:/app/output
+      command: ["/bin/bash", "/app/run_comfyui.sh"]

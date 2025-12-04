@@ -222,6 +222,16 @@ uv pip install -r requirements.txt
 uv pip install -e .
 
 
+# 安装 model 权重的 cli： https://huggingface.co/docs/huggingface_hub/en/guides/cli
+
+uv tool install "huggingface_hub"
+
+hf auth whoami
+
+# 如果 zsh: command not found: hf，请执行下列命令，否则忽略
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+  source ~/.zshrc
+
 
 # 环境变量，如果 docker 没有专门修改端口，端口开启正常的话，默认按照下列配置
 export COLLECTION_GATEWAY_URL=http://localhost:8001/

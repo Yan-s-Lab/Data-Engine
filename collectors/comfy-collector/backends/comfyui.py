@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 import requests
-from .base import GenerationBackend
+from .base import GenerationBackend, GenerationMeta
 
 class ComfyUIBackend(GenerationBackend):
     def __init__(self, name: str, config: Dict[str, Any]):
@@ -33,6 +33,14 @@ class ComfyUIBackend(GenerationBackend):
         return wf
 
     def generate_one(self, idx: int, out_dir: Path) -> Dict[str, Any]:
+        """
+        1. 组装 ComfyUI workflow 请求
+        2. 调用 docker 里的 ComfyUI 接口
+        3. 把生成的图片保存到 out_dir / filename
+        filename = f"img_{req.idx:06d}.png"
+        ... 实际生成逻辑略
+        """
+
         out_dir.mkdir(parents=True, exist_ok=True)
         wf = self._update_workflow_for_job(idx)
 
@@ -51,12 +59,29 @@ class ComfyUIBackend(GenerationBackend):
         out_path = out_dir / filename
         out_path.write_bytes(img_bytes)
 
-        meta = {
-            "backend": self.name,
-            "type": "comfyui",
-            "filename": filename,
-            "prompt": self._build_prompt(idx),
-            "idx": idx,
-            "config_snapshot": self.config,
-        }
-        return meta
+        # meta = {
+        #     "backend": self.name,
+        #     "type": "comfyui",
+        #     "filename": filename,
+        #     "prompt": self._build_prompt(idx),
+        #     "idx": idx,
+        #     "config_snapshot": self.config,
+        # }
+        return GenerationMeta(
+            backend=self.name,
+            generator_id=self.config["generator_id"],
+            idx=req.idx,
+            filename=filename,
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            seed=req.seed,
+            width=req.width,
+            height=req.height,
+            backend_params={
+                "workflow": self.config.get("workflow"),
+                "sampler": "...",
+                "steps": 30,
+                # 任意扩展
+            },
+        )
+

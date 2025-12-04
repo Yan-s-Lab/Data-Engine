@@ -1,166 +1,138 @@
+#!/usr/bin/env python
+# collectors/comfy-collector/run_generate_and_push.py
+from __future__ import annotations
+
 import argparse
-import sys
-import time
+import json
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
-import os
-import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import yaml  # pip install pyyaml
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+import yaml
 
-from collectors.common.client import (
-    create_collection_run,
-    upload_archive_to_collection,
-)
-
-from .backends.base import GenerationBackend
-from .backends.comfyui import ComfyUIBackend
-from .backends.diffusers_local import DiffusersBackend
+from backends import get_backend, GenerationRequest  # 相对路径取决于你怎么运行
 
 
-BACKEND_REGISTRY = {
-    "comfyui": ComfyUIBackend,
-    "diffusers": DiffusersBackend,
-}
+def load_generators_config(path: Path) -> Dict[str, Any]:
+    with path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data
 
 
-def make_zip(src_dir: Path, zip_path: Path):
-    import zipfile
-
-    src_dir = src_dir.resolve()
-    zip_path = zip_path.resolve()
-    zip_path.parent.mkdir(parents=True, exist_ok=True)
-
-    files = [p for p in src_dir.iterdir() if p.is_file()]
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for p in files:
-            zf.write(p, arcname=p.name)
-    return zip_path
+def pick_generator(cfg: Dict[str, Any], generator_id: str) -> Dict[str, Any]:
+    gens = cfg.get("generators", [])
+    for g in gens:
+        if g.get("id") == generator_id:
+            return g
+    raise ValueError(f"Generator id {generator_id!r} not found in config")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Run multiple image generators (ComfyUI / pipelines), pack results, and push to collection-gateway."
-    )
+def render_prompt(gen_cfg: Dict[str, Any], idx: int) -> str:
+    """
+    这里可以用你原来的模板系统；先给一个最简单的占位版本.
+    """
+    base_prompt: str = gen_cfg["prompt"]
+    # 如果有变量，可以在这里根据 idx 或变量表渲染
+    return base_prompt
+
+
+def make_zip(src_dir: Path, out_dir: Path, zip_name: str) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    zip_base = out_dir / zip_name
+    # shutil.make_archive 会自动加 .zip
+    archive_path = shutil.make_archive(str(zip_base), "zip", root_dir=src_dir)
+    return Path(archive_path)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate images and push to Data Engine")
     parser.add_argument(
         "--config",
-        type=str,
+        type=Path,
+        default=Path("generators.yml"),
+        help="Path to generators.yml",
+    )
+    parser.add_argument(
+        "--generator-id",
         required=True,
-        help="YAML config path (generators.yaml)",
+        help="Generator id defined in generators.yml",
+    )
+    parser.add_argument(
+        "--out-root",
+        type=Path,
+        default=Path("./tmp_outputs"),
+        help="Root directory for generated images before zipping",
     )
     args = parser.parse_args()
 
-    cfg_path = Path(args.config).expanduser().resolve()
-    cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    config_all = load_generators_config(args.config)
+    gen_cfg = pick_generator(config_all, args.generator_id)
 
-    run_name = cfg.get("run_name") or f"gen_run"
-    out_root = Path(cfg.get("out_dir", "./tmp_generation_runs")).resolve()
+    backend_name: str = gen_cfg["backend"]  # e.g. "comfyui" / "diffusers_local"
+    num_images: int = int(gen_cfg.get("num_images", 1))
 
-    run_id = int(time.time())
-    run_dir = out_root / f"gen_run_{run_id}"
-    images_dir = run_dir / "images"
-    meta_path = run_dir / "meta.jsonl"
-    images_dir.mkdir(parents=True, exist_ok=True)
+    # 后端专用配置
+    backend_config: Dict[str, Any] = gen_cfg.get("backend_config", {})
+    backend_config["generator_id"] = gen_cfg["id"]
 
-    print(f"[gen] 工作目录: {run_dir}")
+    backend = get_backend(backend_name, backend_config)
 
-    backends_cfg: List[Dict[str, Any]] = cfg.get("backends", [])
-    if not backends_cfg:
-        raise SystemExit("no backends in config.")
+    # 输出目录：可以用 generator_id 做子目录，便于区分
+    work_dir = args.out_root / gen_cfg["id"]
+    work_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. 初始化 backends
-    backends: List[GenerationBackend] = []
-    for bc in backends_cfg:
-        btype = bc["type"]
-        name = bc["name"]
-        cls = BACKEND_REGISTRY.get(btype)
-        if cls is None:
-            raise SystemExit(f"Unknown backend type: {btype}")
-        backends.append(cls(name=name, config=bc))
-
-    # 2. 并发调度任务（简单用线程池）
     metas: List[Dict[str, Any]] = []
-    futures = []
-    max_workers = sum(b.config.get("concurrency", 1) for b in backends)
-    if max_workers <= 0:
-        max_workers = 1
 
-    print(f"[gen] Using ThreadPoolExecutor(max_workers={max_workers})")
+    seed_base = gen_cfg.get("seed_base")
+    width = gen_cfg.get("width")
+    height = gen_cfg.get("height")
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for backend in backends:
-            n = int(backend.config.get("num_images", 0))
-            if n <= 0:
-                continue
-            for i in range(n):
-                idx = i
-                futures.append(
-                    executor.submit(
-                        backend.generate_one, idx, images_dir / backend.name
-                    )
-                )
+    for idx in range(num_images):
+        prompt = render_prompt(gen_cfg, idx)
+        negative_prompt = gen_cfg.get("negative_prompt")
 
-        for fu in as_completed(futures):
-            try:
-                meta = fu.result()
-                metas.append(meta)
-                print(
-                    f"[gen] done: backend={meta['backend']} file={meta['filename']}"
-                )
-            except Exception as e:
-                print(f"[gen] error in generation task: {e}")
+        req = GenerationRequest(
+            idx=idx,
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            seed=(seed_base + idx) if seed_base is not None else None,
+            width=width,
+            height=height,
+            extra=gen_cfg.get("extra_params", {}),
+        )
 
-    if not metas:
-        raise SystemExit("No images generated, abort.")
+        meta = backend.generate_one(req, work_dir)
+        metas.append(meta.to_dict())
+        print(f"[{idx+1}/{num_images}] saved {meta.filename}")
 
-    # 3. 写 meta.jsonl
-    with meta_path.open("w", encoding="utf-8") as f:
-        for m in metas:
-            f.write(json.dumps(m, ensure_ascii=False) + "\n")
+    # 打包成 zip（名字里带上 generator_id 和一个简单的时间戳）
+    archive_dir = args.out_root / "archives"
+    archive_name = f"{gen_cfg['id']}"
+    archive_path = make_zip(work_dir, archive_dir, archive_name)
 
-    # 4. 打 zip
-    zip_path = run_dir / "archive.zip"
-    make_zip(images_dir, zip_path)
-    print(f"[gen] 已生成 zip: {zip_path}")
+    metas_path = archive_dir / f"{archive_name}_metas.json"
+    with metas_path.open("w", encoding="utf-8") as f:
+        json.dump(metas, f, ensure_ascii=False, indent=2)
 
-    # 5. 创建 collection_run
-    run_meta = {
-        "collector": "generator",
-        "backends": [b.name for b in backends],
-        "config_file": str(cfg_path),
-        "total_images": len(metas),
-        "hostname": os.uname().nodename if hasattr(os, "uname") else None,
-    }
+    print(f"\n✅ Generated {num_images} images.")
+    print(f"   Images dir : {work_dir}")
+    print(f"   Archive    : {archive_path}")
+    print(f"   Metas      : {metas_path}")
 
-    collection_name = f"{run_name}_{run_id}"
-
-    print("[gen] 创建 collection_run ...")
-    run_data = create_collection_run(
-        name=collection_name,
-        source_type="generator",
-        description=f"Image generation run from config {cfg_path.name}",
-        meta=run_meta,
-    )
-    collection_run_id = run_data["id"]
-    print(f"[gen] collection_run 创建完成: id={collection_run_id}")
-
-    # 6. 上传 zip
-    print("[gen] 上传 zip 到 /samples/from_archive ...")
-    resp = upload_archive_to_collection(
-        collection_run_id=collection_run_id,
-        archive_path=zip_path,
-        source_type="generator",
-        extra_meta={
-            "collector": "generator",
-            "total_images": len(metas),
-        },
-    )
-    print("[gen] 上传完成，服务端返回：")
-    print(resp)
+    # TODO: 在这里调用你现有的 collection-gateway 客户端，把 archive_path + metas 上传
+    # 比如参考 spider-collector 的 run_spider_and_push.py：
+    #
+    # from common.collection_gateway_client import upload_archive
+    # upload_archive(
+    #     archive_path=archive_path,
+    #     metas=metas,
+    #     collection_name=gen_cfg["collection_name"],
+    #     source_type="synthetic",
+    # )
+    #
+    # 这样 comfy-collector 和 spider-collector 的上传流程就是统一的。
+    #
 
 
 if __name__ == "__main__":

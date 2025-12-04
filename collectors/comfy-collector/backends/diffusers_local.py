@@ -1,43 +1,78 @@
-from pathlib import Path
-from typing import Dict, Any
-import torch
-from diffusers import StableDiffusionXLPipeline
-from .base import GenerationBackend
+# collectors/comfy-collector/backends/diffusers_local.py
+from __future__ import annotations
 
-class DiffusersBackend(GenerationBackend):
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import torch
+from diffusers import StableDiffusionPipeline
+
+from .base import GenerationBackend, GenerationRequest, GenerationMeta
+
+
+class DiffusersLocalBackend(GenerationBackend):
+    """
+    使用 diffusers 在本机生成图片的 backend.
+
+    预期 config:
+      - model_id: huggingface 模型名称或本地路径
+      - device: "cuda" / "cpu"
+      - generator_id: str
+    """
+
     def __init__(self, name: str, config: Dict[str, Any]):
         super().__init__(name, config)
-        model_id = config["model_id"]
-        device = config.get("device", "cuda:0")
+        self.generator_id: str = config["generator_id"]
+        model_id = config.get("model_id", "runwayml/stable-diffusion-v1-5")
+        device = config.get("device", "cuda")
 
-        self.pipe = StableDiffusionXLPipeline.from_pretrained(
-            model_id, torch_dtype=torch.float16
-        ).to(device)
+        self.pipe = StableDiffusionPipeline.from_pretrained(
+            model_id,
+            torch_dtype=torch.float16 if device.startswith("cuda") else torch.float32,
+        )
+        self.pipe = self.pipe.to(device)
         self.device = device
 
-    def _build_prompt(self, idx: int) -> str:
-        tpl = self.config.get("prompt_template", "image {idx}")
-        seed_base = int(self.config.get("seed_start", 1))
-        return tpl.format(idx=idx, seed=seed_base + idx)
-
-    def generate_one(self, idx: int, out_dir: Path) -> Dict[str, Any]:
+    def generate_one(
+        self,
+        req: GenerationRequest,
+        out_dir: Path,
+    ) -> GenerationMeta:
         out_dir.mkdir(parents=True, exist_ok=True)
-        prompt = self._build_prompt(idx)
-        seed = int(self.config.get("seed_start", 1)) + idx
 
-        generator = torch.Generator(device=self.device).manual_seed(seed)
-        image = self.pipe(prompt, generator=generator).images[0]
+        generator = None
+        if req.seed is not None:
+            generator = torch.Generator(device=self.device).manual_seed(req.seed)
 
-        filename = f"{self.name}_{idx:04d}.png"
+        width = req.width or 512
+        height = req.height or 512
+
+        image = self.pipe(
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            width=width,
+            height=height,
+            generator=generator,
+        ).images[0]
+
+        filename = f"img_{req.idx:06d}.png"
         out_path = out_dir / filename
         image.save(out_path)
 
-        return {
-            "backend": self.name,
-            "type": "diffusers",
-            "filename": filename,
-            "prompt": prompt,
-            "seed": seed,
-            "idx": idx,
-            "config_snapshot": self.config,
+        backend_params: Dict[str, Any] = {
+            "device": self.device,
+            "model_id": self.config.get("model_id"),
         }
+
+        return GenerationMeta(
+            backend=self.name,
+            generator_id=self.generator_id,
+            idx=req.idx,
+            filename=filename,
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            seed=req.seed,
+            width=width,
+            height=height,
+            backend_params=backend_params,
+        )
