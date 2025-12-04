@@ -1,0 +1,105 @@
+# infra/ComfyUI/models.yaml
+
+models:
+  # ================================
+  # Flux1-dev-workflow model dependeces
+  # ================================
+  - name: flux1-dev
+    type: diffusion
+    dest: diffusion_models
+    source: huggingface
+    repo: Comfy-Org/flux1-dev
+    files:
+      - flux1-dev-fp8.safetensors # 量化版本 17GB
+      - flux1-dev.safetensors # 22GB
+
+  - name: flux1-text-encoders
+    type: text_encoder
+    dest: text_encoders
+    source: huggingface
+    repo: comfyanonymous/flux_text_encoders
+    files:
+      - t5xxl_fp16.safetensors
+      - clip_l.safetensors
+
+  - name: flux1-vae
+    type: vae
+    dest: vae
+    source: huggingface
+    repo: black-forest-labs/FLUX.1-dev
+    files:
+      - ae.safetensors
+
+  # ================================
+  # Qwen-image 系列
+  # ================================
+  - name: qwen-controlnet
+    type: controlnet_patch
+    dest: model_patches
+    source: huggingface
+    repo: Comfy-Org/Qwen-Image-DiffSynth-ControlNets
+    files:
+      - split_files/model_patches/qwen_image_canny_diffsynth_controlnet.safetensors
+
+  - name: qwen-vae
+    type: vae
+    dest: vae
+    source: huggingface
+    repo: Comfy-Org/Qwen-Image_ComfyUI
+    files:
+      - split_files/vae/qwen_image_vae.safetensors
+
+  - name: qwen-fp8
+    type: diffusion
+    dest: diffusion_models
+    source: huggingface
+    repo: Comfy-Org/Qwen-Image_ComfyUI
+    files:
+      - split_files/diffusion_models/qwen_image_fp8_e4m3fn.safetensors
+
+  - name: qwen-text-encoder
+    type: text_encoder
+    dest: text_encoders
+    source: huggingface
+    repo: Comfy-Org/Qwen-Image_ComfyUI
+    files:
+      - split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+
+  # ================================
+  # Loras
+  # ================================
+  - name: qwen-lightning
+    type: lora
+    dest: loras
+    source: huggingface
+    repo: lightx2v/Qwen-Image-Lightning
+    files:
+      - Qwen-Image-Lightning-4steps-V1.0.safetensors
+
+  # ================================
+  # ControlNet OpenPose
+  # ================================
+  - name: controlnet-openpose
+    type: controlnet
+    dest: controlnet
+    source: huggingface
+    repo: comfyanonymous/ControlNet-v1-1_fp16_safetensors
+    files:
+      - control_v11p_sd15_openpose_fp16.safetensors
+
+  # ================================
+  # CVITAI 模型
+  # ================================
+  - name: majicmix-v7
+    type: checkpoint
+    dest: checkpoints
+    source: civitai
+    url: "https://civitai.com/api/download/models/176425?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+    filename: majicmixRealistic_v7.safetensors
+
+  - name: japanese-style-v20
+    type: checkpoint
+    dest: checkpoints
+    source: civitai
+    url: "https://civitai.com/api/download/models/85426?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+    filename: japaneseStyleRealistic_v20.safetensors

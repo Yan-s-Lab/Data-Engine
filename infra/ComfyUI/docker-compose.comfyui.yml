@@ -2,7 +2,7 @@ services:
   comfyui:
     build:
       context: ..
-      dockerfile: comfy-collector/Dockerfile
+      dockerfile: ComfyUI/Dockerfile
     container_name: comfyui-service
     restart: unless-stopped
 

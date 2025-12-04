@@ -1,5 +1,5 @@
-# 基于 CUDA 12.1 + Ubuntu 20.04 的运行时镜像
-FROM nvidia/cuda:12.1.1-runtime-ubuntu20.04
+# 基于 CUDA 12.1 + Ubuntu 22.04 的运行时镜像 （20.04 也能兼容）
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
