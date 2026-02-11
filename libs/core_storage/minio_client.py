@@ -1,7 +1,35 @@
+# libs/core_storage/minio_client.py
 import os
 from functools import lru_cache
+from io import BytesIO
 from minio import Minio
-from minio.error import S3Error
+import mimetypes
+
+
+# 可以在这里补充一些常见但系统没默认配置好的类型
+_EXTRA_TYPES = {
+    ".json": "application/json",
+    ".yml": "application/x-yaml",
+    ".yaml": "application/x-yaml",
+    ".md": "text/markdown",
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".avi": "video/x-msvideo",
+    ".csv": "text/csv",
+}
+
+for ext, mime in _EXTRA_TYPES.items():
+    mimetypes.add_type(mime, ext, strict=False)
+
+
+def guess_mime_type(filename: str, default: str = "application/octet-stream") -> str:
+    """
+    通用 MIME 类型推断:
+      1. 优先用 mimetypes.guess_type
+      2. 猜不到就返回 default
+    """
+    mime, _ = mimetypes.guess_type(filename)
+    return mime or default
 
 
 @lru_cache(maxsize=1)
@@ -21,36 +49,32 @@ def get_minio_client() -> Minio:
 
 def ensure_bucket(bucket_name: str) -> None:
     client = get_minio_client()
-    found = client.bucket_exists(bucket_name)
-    if not found:
+    if not client.bucket_exists(bucket_name):
         client.make_bucket(bucket_name)
 
 
-def upload_file(
+def upload_bytes(
     bucket: str,
     object_name: str,
-    file_path: str,
+    data: bytes,
     content_type: str | None = None,
 ) -> str:
     """
-    上传本地文件到 MinIO，返回 s3://bucket/object_name URI
+    上传内存中的 bytes 到 MinIO，返回 s3://bucket/object_name URI
     """
     client = get_minio_client()
     ensure_bucket(bucket)
 
+    length = len(data)
     extra = {}
     if content_type:
         extra["content_type"] = content_type
 
-    client.fput_object(
+    client.put_object(
         bucket_name=bucket,
         object_name=object_name,
-        file_path=file_path,
+        data=BytesIO(data),
+        length=length,
         **extra,
     )
     return f"s3://{bucket}/{object_name}"
-
-
-def presigned_get_url(bucket: str, object_name: str, expires_seconds: int = 3600) -> str:
-    client = get_minio_client()
-    return client.presigned_get_object(bucket, object_name, expires=expires_seconds)

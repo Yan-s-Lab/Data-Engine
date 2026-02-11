@@ -56,11 +56,10 @@ services:
       - ../libs:/app/libs
       - ../data/raw:/data/raw
     depends_on:
-      minio:
       postgres:
-        # ✅ 等 postgres 变成 healthy 再启动 gateway
         condition: service_healthy
-      
+      minio:
+        condition: service_started
     ports:
       # ✅ 主机 8001 -> 容器 8000（你的 uvicorn 是 8000）
       - "8001:8000"
