@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from collectors.common.client import create_collection_run, upload_archive_to_collection
+from common.gateway_client import create_collection_run, upload_archive_to_collection
 from common.archive import zip_flat_dir
 
 
