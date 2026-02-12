@@ -1,4 +1,4 @@
-**Real-Anchored Synthetic Data Engine — CLI-First Research System**
+# Real-Anchored Synthetic Data Engine — CLI-First Research System
 
 ---
 
@@ -6,126 +6,157 @@
 
 You are an engineering and research agent working on a **Real-Anchored Synthetic Data Engine**.
 
-This system is designed for iterative data construction, filtering, training, and feedback-driven refinement.
+This system is a **closed-loop research platform** for iterative data construction, filtering, model training, evaluation, and feedback-driven refinement.
 
-The system may be rewritten from scratch.
-It is optimized for research clarity and experimental agility, not industrial deployment.
+The system may be rewritten at any time.
+It prioritizes:
+
+* Research clarity
+* Experimental agility
+* Iteration transparency
+* Distribution control
+
+It does **not** prioritize production scalability.
 
 ---
 
-## 1. Project Identity (Non-Negotiable)
+# 1. Project Identity (Non-Negotiable)
 
-### 1.1 What This Project Is
+## 1.1 What This Project Is
 
-This project is a **closed-loop Data Engine** that includes:
+This project is a **closed-loop Data Iteration Engine**.
+
+It is not:
+
+* A dataset
+* A model
+* A synthetic generator
+* A training script collection
+
+It is a **data evolution system**.
+
+Core loop components:
 
 1. Real data ingestion
 2. Guided synthetic data generation
-3. Multi-stage filtering and labeling
-4. Supervised and semi-supervised training
-5. Evaluation and slice-based failure analysis
-6. Feedback-driven policy refinement
-7. Human-in-the-Loop (HITL) correction
+3. Multi-stage filtering & labeling
+4. Supervised / semi-supervised training
+5. Evaluation & slice-based failure analysis
+6. Feedback-driven generation/filter policy update
+7. Human-in-the-Loop correction
 
-The entity of the project is the **data iteration system**, not a single dataset or model.
+The identity of the project is the **iteration mechanism**.
 
 ---
 
-## 2. Real-Anchored Synthetic Paradigm
+# 2. Real-Anchored Synthetic Paradigm
 
-### 2.1 Core Principle
+## 2.1 Core Principle
 
-Real data serves as the **distribution anchor**.
-Synthetic data serves as a **guided expansion mechanism**.
+Real data defines the **distribution anchor**.
 
-Synthetic data must always be:
+Synthetic data is a **controlled expansion operator**.
 
-* conditioned on real data statistics
-* guided by model failure patterns
-* evaluated against real validation sets
+Synthetic data must always:
 
-Training always mixes:
+* Be conditioned on real data statistics
+* Be guided by model failure slices
+* Be validated against real validation sets
+* Be filtered before mixing
+
+Training rule:
 
 ```
-Train(real + synthetic)
+Train(real + filtered_synthetic)
 ```
 
-Synthetic never replaces real data.
+Synthetic data never replaces real data.
+
+It expands and probes distribution coverage.
 
 ---
 
-### 2.2 Role of Synthetic Data
+## 2.2 Synthetic Is Policy-Driven
 
-Synthetic data is used for:
+Synthetic generation must be governed by:
 
-* Cold-start expansion when real data is scarce
-* Coverage balancing (pose, BMI, lighting, viewpoint, etc.)
-* Failure probing and stress testing
-* Controlled experiments on distribution shifts
+* Failure slice targeting
+* Coverage balancing objectives
+* Controlled perturbation experiments
+* Distribution gap hypotheses
 
-Synthetic generation is **policy-driven**, not arbitrary.
+Synthetic generation without a policy is invalid.
 
 ---
 
-## 3. System Architecture Philosophy
+# 3. System Architecture Philosophy
 
-### 3.1 CLI-First, Pipeline-First
+## 3.1 CLI-First, Pipeline-First
 
-The minimal unit of the system is a CLI module.
-
-Every subsystem must be runnable via:
+The atomic unit of execution is a CLI module:
 
 ```bash
 python module.py --config config.yaml
 ```
 
-Pipelines are composed by chaining CLIs, not by tightly coupled services.
+Pipelines are composed by chaining CLIs.
 
-Services or UI tools may exist, but they must wrap CLI logic.
+No subsystem should require:
 
----
+* Long-running services
+* Tight framework coupling
+* Hidden background orchestration
 
-### 3.2 Canonical Subsystems
-
-The system conceptually contains:
-
-* `ingest/` – normalize and register real/synthetic data
-* `embed/` – compute embeddings for filtering
-* `filter/` – apply ASF, PCS, and other filters
-* `label/` – pseudo-labeling and HITL integration
-* `train/` – supervised/semi-supervised model training
-* `eval/` – metrics and slice-based failure analysis
-
-These are logical modules.
-Actual implementation may evolve.
+UI and services may wrap CLI logic, but CLI remains canonical.
 
 ---
 
-## 4. Filtering as First-Class Component
+## 3.2 Canonical Logical Subsystems
 
-Filters are not preprocessing utilities.
+Logical modules:
 
-Filters are decision modules that:
+* `ingest/` — normalize and register real/synthetic data
+* `generate/` — synthetic generation (policy-driven)
+* `embed/` — embedding computation
+* `filter/` — ASF / PCS / CLIP / statistical filters
+* `label/` — pseudo-labeling + HITL integration
+* `train/` — supervised / semi-supervised training
+* `eval/` — metrics + slice-based analysis
+* `analysis/` — failure pattern extraction
 
-* Accept model/eval feedback
-* Update thresholds and policies
-* Control data selection and mixing
+These are conceptual boundaries.
+Implementation may evolve.
+
+---
+
+# 4. Filtering as First-Class Component
+
+Filters are decision modules.
+
+They:
+
+* Accept model feedback
+* Adjust thresholds
+* Control data admission
 * Regulate pseudo-label acceptance
+* Enforce distribution constraints
 
-Examples include:
+Filters are:
 
-* ASF (Annotation Similarity Filter)
-* PCS (Perturbation CLIP Similarity)
-* CLIP-based semantic consistency checks
-* Statistical distribution alignment
+* Iterative
+* Configurable
+* Potentially stateful
 
-Filters are iterative and stateful.
+Filtering logic must be explicit and reproducible.
+
+Filtering is not preprocessing.
+It is a control layer.
 
 ---
 
-## 5. Closed-Loop Feedback (Hard Constraint)
+# 5. Closed-Loop Feedback (Hard Constraint)
 
-The system must implement the loop:
+The system must implement:
 
 ```
 Real Data
@@ -143,69 +174,135 @@ Failure & Slice Analysis
 Update Generation + Filter Policies
 ```
 
-Feedback sources include:
+Feedback sources:
 
-* evaluation metrics (mAP, IoU, calibration)
-* slice failures (pose, BMI, lighting, etc.)
-* pseudo-label uncertainty
+* mAP / IoU / calibration metrics
+* Slice failures (pose / BMI / lighting / viewpoint)
+* Pseudo-label uncertainty
 * HITL corrections
+* Distribution misalignment statistics
+
+Every stage must allow iteration.
 
 No stage is terminal.
-Every stage must allow iteration.
 
 ---
 
-## 6. Human-in-the-Loop (HITL)
-
-HITL is a mandatory component.
+# 6. Human-in-the-Loop (Mandatory)
 
 The system must support:
 
-* pushing uncertain samples for annotation
-* pulling corrected labels
-* recording provenance
-* integrating corrections into future training
+* Pushing uncertain samples for annotation
+* Pulling corrected annotations
+* Tracking annotation provenance
+* Reintegration into training
+* Tracking correction impact
 
-External tools (e.g., Label Studio) may be used via minimal CLI integration.
+External annotation tools (e.g., Label Studio) may be used via CLI connectors.
 
 Full automation is not required.
 
----
-
-## 7. Implementation Constraints
-
-When writing or rewriting code:
-
-1. Prefer explicit, modular CLI scripts.
-2. Avoid over-engineered service frameworks.
-3. Keep artifacts transparent and reproducible.
-4. Separate:
-
-   * ingestion
-   * filtering
-   * labeling
-   * training
-   * evaluation
-5. Do not assume any previous repository structure is authoritative.
+Human correction is part of the loop.
 
 ---
 
-## 8. Source of Truth Hierarchy
+# 7. Experimental Discipline (New Section)
+
+This is a research system.
+
+Therefore:
+
+* Every experiment must be reproducible
+* Every dataset version must be traceable
+* Every synthetic policy must be logged
+* Every filter configuration must be versioned
+* Every training run must record its data mixture
+
+No silent data mutation is allowed.
+
+---
+
+# 8. Git and Change Management (Critical Addition)
+
+## 8.1 Mandatory Git Discipline
+
+When introducing:
+
+* Major architectural changes
+* Functional additions
+* Filtering logic modifications
+* Data schema changes
+* CLI interface changes
+
+You must:
+
+1. Stage only relevant files
+2. Write meaningful commit messages
+3. Reference design intent
+
+Example:
+
+```bash
+git add ingest/ filter/ docs/design/filter_update.md
+git commit -m "Refactor filter module: introduce ASF threshold policy abstraction"
+```
+
+---
+
+## 8.2 Commit Message Structure
+
+Use structured messages:
+
+```
+[Module] Short summary
+
+Why:
+What problem this change solves
+
+What:
+Key changes introduced
+
+Impact:
+Expected effect on iteration loop
+```
+
+---
+
+## 8.3 Large Changes Require Documentation
+
+If modification affects:
+
+* Closed-loop logic
+* Data mixing policy
+* Synthetic policy
+* Filter mechanism
+* Training pipeline structure
+
+You must:
+
+* Update `docs/design/*.md`
+* Update `docs/state/*.md` if implementation changes
+* Then commit
+
+Design must not drift silently.
+
+---
+
+# 9. Source of Truth Hierarchy
 
 When reasoning:
 
-1. `Agent.md` defines conceptual constraints.
-2. `docs/state/*.md` defines current implementation reality.
-3. `docs/design/*.md` defines aspirational architecture.
-4. Code may lag behind design.
+1. AGENTS.md — conceptual constraints
+2. docs/state/*.md — implemented reality
+3. docs/design/*.md — architectural intent
+4. Code — implementation snapshot
 
-Never assume unimplemented features exist.
+Never assume features exist unless verified.
 
 ---
 
-## 9. Final Principle
+# 10. Final Principle
 
-> This project optimizes for understanding and controlling data iteration,
-> not for shipping infrastructure.
+> This system optimizes for understanding and controlling data evolution.
 
-Agents should help the system converge intellectually before optimizing technically.
+We refine thinking before optimizing infrastructure.
