@@ -2,6 +2,9 @@
 
 This branch is the CLI-first rewrite scaffold.
 
+## 中文手册（傻瓜式）
+- `docs/README_PIPELINE_ZH.md`
+
 ## 1) Generate synthetic images via ComfyUI
 ```bash
 python synth/comfyui_generate.py \
