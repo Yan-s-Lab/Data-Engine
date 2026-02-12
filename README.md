@@ -38,3 +38,21 @@ python label/label_studio_pull.py \
   --project-id 1 \
   --out ./artifacts/labels/label_studio_pull.jsonl
 ```
+
+## 5) Minimal runnable loop stub (`filter -> train -> eval`)
+```bash
+conda run -n open_data_engine python pipelines/filter_train_eval_round.py \
+  --config configs/examples/min_closed_loop_stub.yaml
+```
+
+Key outputs are under:
+`artifacts/runs/m1_filter_train_eval_demo/{filter,train,eval}/`
+
+## 6) Single-node minimal closed loop (`DataLoader -> generate -> filter -> train -> eval`)
+```bash
+python pipelines/run_yaml_pipeline.py \
+  --config configs/examples/min_single_node_closed_loop.yaml
+```
+
+Key outputs are under:
+`artifacts/runs/m2_single_node_closed_loop_demo/{dataloader,generate,filter,train,eval}/`

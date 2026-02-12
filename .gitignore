@@ -2,3 +2,5 @@
 **/postgres/
 __pycache__/
 *.pyc
+artifacts/
+minedata/

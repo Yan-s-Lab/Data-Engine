@@ -1,0 +1,22 @@
+run:
+  run_id: m1_filter_train_eval_demo
+  artifacts_root: artifacts/runs
+
+filter:
+  # Optional: if absent, filter stage auto-generates a stub manifest.
+  # input_manifest: artifacts/my_manifest.jsonl
+  stub_total_count: 30
+  stub_real_ratio: 0.6
+  accept_threshold: 0.62
+  uncertain_low: 0.48
+  uncertain_high: 0.62
+
+train:
+  model_name: stub_detector_v0
+  max_train_samples: 20
+  # accept_manifest: artifacts/runs/<run_id>/filter/splits/accept.jsonl
+
+eval:
+  hard_case_topk: 6
+  target_map50: 0.75
+  # model_stub: artifacts/runs/<run_id>/train/model_stub.json
