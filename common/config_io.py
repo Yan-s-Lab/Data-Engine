@@ -35,3 +35,17 @@ def resolve_run_dir(config: Dict[str, Any]) -> Path:
     run_dir = artifacts_root / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
+
+
+def parse_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in {"1", "true", "yes", "y", "on"}:
+            return True
+        if v in {"0", "false", "no", "n", "off"}:
+            return False
+    return bool(value)

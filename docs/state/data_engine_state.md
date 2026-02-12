@@ -13,6 +13,12 @@ What is real today:
 - Single-node YAML pipeline is runnable:
   - `dataloader -> generate -> filter -> train -> eval`
   - entrypoint: `pipelines/run_yaml_pipeline.py`
+- DataLoader CLI is implemented (`ingest/run_dataloader.py`) for:
+  - image collection from configured raw paths
+  - optional label pairing by stem
+  - filename canonicalization with template variables (including `services_id`)
+  - optional image extension normalization (e.g., jpg/jpeg -> png)
+  - normalized dataset output (`images/`, `labels/`) + manifest/report artifacts
 - `synth -> ingest` can run through external services:
   - generate images from ComfyUI HTTP API
   - zip generated outputs
@@ -33,7 +39,7 @@ What is not in this repository now:
 - No local `collection-gateway` service implementation.
 - No real model training/evaluation/filter algorithms yet (current implementation is stub logic).
 - No end-to-end closed-loop policy update implementation.
-- No canonical DataLoader contract for cross-machine identity/provenance management.
+- No full DataLoader kernel contract for global cross-machine identity/provenance management yet.
 
 ## Directory Structure Assessment
 
@@ -74,6 +80,11 @@ Structure is **reasonable for CLI-first research iteration**:
   - uploads archive via `/samples/from_archive`
 - `ingest/register_archive.py`
   - generic archive registration path to `collection-gateway`
+- `ingest/run_dataloader.py`
+  - normalizes raw dataset layout by config
+  - enforces image/label stem consistency during rename
+  - supports template-based output naming and output-root templating
+  - writes `dataloader/{real_manifest.jsonl,anchor_stats.json,report.json}`
 - `label/label_studio_push.py`
   - converts manifest rows to Label Studio import task payloads
 - `label/label_studio_pull.py`
@@ -107,7 +118,7 @@ Structure is **reasonable for CLI-first research iteration**:
 
 - `embed/run_embed.py`: CLI placeholder only
 - `pipelines/closed_loop_round.py`: not a full closed loop yet (no filter/train/eval/feedback stage)
-- DataLoader kernel: not implemented as a dedicated CLI contract yet
+- DataLoader kernel: partially implemented as a dedicated CLI, but not a complete kernel contract yet
 - DataFilter plugin bridge: not implemented (current filter stage is monolithic stub)
 - ConfigurablePipeliner: not implemented (current pipelines are hard-coded chains)
 
@@ -117,7 +128,7 @@ Target loop:
 `Real/Synth ingest -> Filter/Label -> Train -> Eval -> Failure analysis -> Policy update -> next round`
 
 Current progress level by subsystem:
-- Ingest: **L2** (basic external gateway integration, but no canonical DataLoader)
+- Ingest: **L3** (DataLoader normalization CLI + external gateway integration; no full global identity kernel yet)
 - Synth generation: **L3** (single-node pipeline-connected; configurable local/comfyui backend)
 - Label/HITL bridge: **L2** (push/pull APIs available)
 - Embed: **L0** (not implemented)
