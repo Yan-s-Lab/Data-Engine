@@ -56,3 +56,11 @@ python pipelines/run_yaml_pipeline.py \
 
 Key outputs are under:
 `artifacts/runs/m2_single_node_closed_loop_demo/{dataloader,generate,filter,train,eval}/`
+
+## 7) Single-node closed loop with real ComfyUI generation
+```bash
+python pipelines/run_yaml_pipeline.py \
+  --config configs/examples/min_single_node_closed_loop_comfyui.yaml
+```
+
+This uses `generate.backend: comfyui` in `synth/run_generate.py`.

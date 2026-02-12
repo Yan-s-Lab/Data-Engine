@@ -4,16 +4,23 @@
 > This file records what is **actually implemented** in this repository at scan time.
 > It is not an architecture target; targets belong in `docs/design/*.md`.
 
-## Snapshot (as of 2026-02-11)
+## Snapshot (as of 2026-02-12)
 
 The repository is currently a **CLI-first rewrite scaffold** with a few working adapters.
 
 What is real today:
 - Stage folders exist: `ingest/`, `embed/`, `filter/`, `label/`, `train/`, `eval/`, `synth/`, `pipelines/`, `common/`.
+- Single-node YAML pipeline is runnable:
+  - `dataloader -> generate -> filter -> train -> eval`
+  - entrypoint: `pipelines/run_yaml_pipeline.py`
 - `synth -> ingest` can run through external services:
   - generate images from ComfyUI HTTP API
   - zip generated outputs
   - create collection run and upload archive to `collection-gateway`
+- `generate` stage supports configurable backend:
+  - `local_stub` (local image augmentation)
+  - `comfyui` (real generation via ComfyUI `/prompt`)
+  - ComfyUI mode supports `client_id`, `extra_data`, optional websocket completion wait, and `/history` fallback
 - Label Studio integration exists as independent CLIs:
   - push tasks from manifest JSONL
   - pull tasks/annotations and flatten to JSONL
@@ -49,6 +56,13 @@ Structure is **reasonable for CLI-first research iteration**:
   - polls `/history/{prompt_id}`
   - downloads images from `/view`
   - writes local files + `manifest.jsonl`
+- `synth/run_generate.py`
+  - supports `generate.backend` dispatch (`local_stub` / `comfyui`)
+  - in `comfyui` mode:
+    - submits `/prompt` with optional `client_id` and `extra_data`
+    - optional websocket wait (`executing` completion signal), then fetches final outputs from `/history`
+    - downloads generated images via `/view`
+    - writes `generate/{synth_manifest.jsonl,mixed_manifest.jsonl,report.json}`
 - `synth/comfyui_to_collection.py`
   - creates collection run via `common.gateway_client.create_collection_run`
   - zips flat image directory via `common.archive.zip_flat_dir`
@@ -73,6 +87,12 @@ Structure is **reasonable for CLI-first research iteration**:
   - orchestrates one minimal round: `comfyui_generate -> comfyui_to_collection`
 - `pipelines/filter_train_eval_round.py`
   - orchestrates one minimal local round: `filter -> train -> eval`
+- `pipelines/run_yaml_pipeline.py`
+  - orchestrates single-node closed loop by config:
+    - `dataloader -> generate -> filter -> train -> eval`
+  - verifies each stage expected artifact exists
+- `configs/examples/min_single_node_closed_loop_comfyui.yaml`
+  - example config for real ComfyUI-backed generate stage
 - `common/manifest_io.py`, `common/gateway_client.py`, `common/archive.py`
   - JSON/JSONL IO, gateway HTTP calls, archive packaging
 - `common/config_io.py`
@@ -93,7 +113,7 @@ Target loop:
 
 Current progress level by subsystem:
 - Ingest: **L2** (basic external gateway integration, but no canonical DataLoader)
-- Synth generation: **L2** (ComfyUI job + output manifest)
+- Synth generation: **L3** (single-node pipeline-connected; configurable local/comfyui backend)
 - Label/HITL bridge: **L2** (push/pull APIs available)
 - Embed: **L0** (not implemented)
 - Filter (ASF/PCS/policy): **L2** (stub filter decisions + split artifacts, no plugin kernel)
