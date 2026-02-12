@@ -109,6 +109,10 @@ Structure is **reasonable for CLI-first research iteration**:
   - verifies each stage expected artifact exists
 - `configs/examples/min_single_node_closed_loop_comfyui.yaml`
   - example config for real ComfyUI-backed generate stage
+- `configs/examples/min_single_node_closed_loop_comfyui_api.yaml`
+  - example single-node closed-loop config using ComfyUI API graph workflow
+- `configs/examples/comfyui/flux_dev_api_img2img.json`
+  - ComfyUI API graph example for image-to-image anchor generation
 - `common/manifest_io.py`, `common/gateway_client.py`, `common/archive.py`
   - JSON/JSONL IO, gateway HTTP calls, archive packaging
 - `common/config_io.py`
