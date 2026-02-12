@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 import json
 from pathlib import Path
 import random
@@ -19,7 +20,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from common.config_io import load_config, resolve_run_dir
-from common.manifest_io import read_json, read_jsonl, write_json, write_jsonl
+from common.manifest_io import read_jsonl, write_json, write_jsonl
 
 
 def synthesize_image(src_path: Path, out_path: Path, seed: int) -> None:
@@ -48,6 +49,26 @@ def submit_prompt(
     resp.raise_for_status()
     data = resp.json()
     return str(data["prompt_id"])
+
+
+def upload_input_image(
+    base_url: str,
+    image_path: Path,
+    overwrite: bool = True,
+    subfolder: str = "",
+) -> str:
+    with image_path.open("rb") as f:
+        files = {"image": (image_path.name, f, "application/octet-stream")}
+        data = {"type": "input", "overwrite": str(bool(overwrite)).lower()}
+        if subfolder:
+            data["subfolder"] = subfolder
+        resp = requests.post(f"{base_url}/upload/image", files=files, data=data, timeout=120)
+    resp.raise_for_status()
+    body = resp.json()
+    name = body.get("name")
+    if not name:
+        raise RuntimeError("ComfyUI /upload/image returned payload without `name`")
+    return str(name)
 
 
 def wait_history(
@@ -154,12 +175,128 @@ def download_history_outputs(
     return rows
 
 
+def is_comfy_api_prompt_graph(obj: Any) -> bool:
+    if not isinstance(obj, dict) or not obj:
+        return False
+    for _, node in obj.items():
+        if not isinstance(node, dict):
+            return False
+        if "class_type" not in node:
+            return False
+        if "inputs" not in node or not isinstance(node.get("inputs"), dict):
+            return False
+    return True
+
+
+def is_comfy_ui_workflow(obj: Any) -> bool:
+    return isinstance(obj, dict) and "nodes" in obj and "links" in obj and "last_node_id" in obj
+
+
+def load_prompt_graph(comfy_cfg: Dict[str, Any]) -> tuple[Dict[str, Any], str]:
+    inline_graph = comfy_cfg.get("prompt_graph")
+    workflow_path_str = str(comfy_cfg.get("workflow", "")).strip()
+    if inline_graph is not None and workflow_path_str:
+        raise ValueError("generate.comfyui.prompt_graph and generate.comfyui.workflow are mutually exclusive")
+    if inline_graph is None and not workflow_path_str:
+        raise ValueError("generate.comfyui requires either `workflow` or `prompt_graph`")
+
+    if inline_graph is not None:
+        graph = inline_graph
+        source = "inline:generate.comfyui.prompt_graph"
+    else:
+        workflow_path = Path(workflow_path_str)
+        if not workflow_path.exists():
+            raise FileNotFoundError(
+                "generate.backend=comfyui requires generate.comfyui.workflow to exist"
+            )
+        graph = load_config(workflow_path)
+        source = str(workflow_path)
+
+    if is_comfy_ui_workflow(graph):
+        raise ValueError(
+            "ComfyUI workflow is UI format; /prompt needs API prompt graph format "
+            "(node_id -> {class_type, inputs})"
+        )
+    if not is_comfy_api_prompt_graph(graph):
+        raise ValueError(
+            "invalid ComfyUI API prompt graph format; expected mapping of node ids to "
+            "{class_type, inputs}"
+        )
+    return deepcopy(graph), source
+
+
 def set_workflow_seed(
     workflow: Dict[str, Any], seed_node_id: str, seed_input_key: str, seed: int
 ) -> None:
     if not seed_node_id:
         return
     workflow.setdefault(seed_node_id, {}).setdefault("inputs", {})[seed_input_key] = seed
+
+
+def set_workflow_prompt_text(
+    workflow: Dict[str, Any],
+    prompt_cfg: Dict[str, Any],
+    anchor_row: Dict[str, Any],
+    sample_idx: int,
+) -> str:
+    node_id = str(prompt_cfg.get("node_id", "")).strip()
+    if not node_id:
+        return ""
+    input_key = str(prompt_cfg.get("input_key", "text"))
+    text_template = prompt_cfg.get("text_template")
+    text = str(prompt_cfg.get("text", ""))
+    if text_template is not None:
+        if not isinstance(text_template, str):
+            raise ValueError("generate.comfyui.prompt.text_template must be a string")
+        context: Dict[str, Any] = {
+            "sample_index": sample_idx,
+            **{k: v for k, v in anchor_row.items() if isinstance(v, (str, int, float, bool))},
+        }
+        try:
+            text = text_template.format(**context)
+        except KeyError as exc:
+            raise ValueError(
+                f"generate.comfyui.prompt.text_template missing field in anchor row: {exc}"
+            ) from exc
+    workflow.setdefault(node_id, {}).setdefault("inputs", {})[input_key] = text
+    return text
+
+
+def set_workflow_anchor_image(
+    workflow: Dict[str, Any],
+    anchor_cfg: Dict[str, Any],
+    anchor_row: Dict[str, Any],
+    base_url: str,
+) -> str:
+    node_id = str(anchor_cfg.get("node_id", "")).strip()
+    if not node_id:
+        return ""
+    input_key = str(anchor_cfg.get("input_key", "image"))
+    path_field = str(anchor_cfg.get("path_field", "image_path"))
+    image_path_val = str(anchor_row.get(path_field, "")).strip()
+    if not image_path_val:
+        raise ValueError(
+            f"generate.comfyui.anchor_image cannot find `{path_field}` in anchor row {anchor_row.get('sample_id')}"
+        )
+    image_path = Path(image_path_val)
+    if not image_path.exists():
+        raise FileNotFoundError(f"anchor image path not found: {image_path}")
+
+    upload = bool(anchor_cfg.get("upload", True))
+    if upload:
+        upload_overwrite = bool(anchor_cfg.get("upload_overwrite", True))
+        upload_subfolder = str(anchor_cfg.get("upload_subfolder", ""))
+        value = upload_input_image(
+            base_url=base_url,
+            image_path=image_path,
+            overwrite=upload_overwrite,
+            subfolder=upload_subfolder,
+        )
+    else:
+        value = str(image_path)
+
+    workflow.setdefault(node_id, {}).setdefault("inputs", {})[input_key] = value
+    return value
 
 
 def generate_with_local_stub(
@@ -200,11 +337,8 @@ def generate_with_comfyui(
     real_rows: List[Dict[str, Any]], gen_cfg: Dict[str, Any], img_dir: Path
 ) -> List[Dict[str, Any]]:
     comfy_cfg = gen_cfg.get("comfyui", {})
-    workflow_path = Path(str(comfy_cfg.get("workflow", "")))
-    if not workflow_path.exists():
-        raise FileNotFoundError(
-            "generate.backend=comfyui requires generate.comfyui.workflow to exist"
-        )
+    if not isinstance(comfy_cfg, dict):
+        raise ValueError("generate.comfyui must be a mapping")
 
     base_url = str(comfy_cfg.get("base_url", "http://127.0.0.1:8188")).rstrip("/")
     timeout_sec = int(comfy_cfg.get("timeout_sec", 300))
@@ -220,6 +354,17 @@ def generate_with_comfyui(
         extra_data = {}
     if not isinstance(extra_data, dict):
         raise ValueError("generate.comfyui.extra_data must be a dict when provided")
+    prompt_cfg = comfy_cfg.get("prompt", {})
+    if prompt_cfg is None:
+        prompt_cfg = {}
+    if not isinstance(prompt_cfg, dict):
+        raise ValueError("generate.comfyui.prompt must be a dict when provided")
+    anchor_cfg = comfy_cfg.get("anchor_image", {})
+    if anchor_cfg is None:
+        anchor_cfg = {}
+    if not isinstance(anchor_cfg, dict):
+        raise ValueError("generate.comfyui.anchor_image must be a dict when provided")
+    prompt_graph_template, prompt_graph_source = load_prompt_graph(comfy_cfg)
 
     synth_per_real = int(gen_cfg.get("synth_per_real", 1))
     max_synth = int(gen_cfg.get("max_synth_samples", 0))
@@ -237,8 +382,21 @@ def generate_with_comfyui(
 
     while local_idx < target_count:
         seed = seed_base + job_idx
-        workflow = read_json(workflow_path)
+        anchor = real_rows[local_idx % len(real_rows)]
+        workflow = deepcopy(prompt_graph_template)
         set_workflow_seed(workflow, seed_node_id, seed_input_key, seed)
+        effective_prompt_text = set_workflow_prompt_text(
+            workflow=workflow,
+            prompt_cfg=prompt_cfg,
+            anchor_row=anchor,
+            sample_idx=local_idx,
+        )
+        effective_anchor_input = set_workflow_anchor_image(
+            workflow=workflow,
+            anchor_cfg=anchor_cfg,
+            anchor_row=anchor,
+            base_url=base_url,
+        )
         prompt_id = submit_prompt(
             base_url=base_url,
             workflow=workflow,
@@ -276,10 +434,15 @@ def generate_with_comfyui(
         for row in out_rows:
             if local_idx >= target_count:
                 break
-            anchor = real_rows[local_idx % len(real_rows)]
             row["anchor_real_sample_id"] = anchor.get("sample_id")
+            row["anchor_real_image_path"] = anchor.get("image_path")
             row["comfy_prompt_id"] = prompt_id
             row["seed"] = seed
+            row["comfy_prompt_graph_source"] = prompt_graph_source
+            if effective_prompt_text:
+                row["effective_prompt_text"] = effective_prompt_text
+            if effective_anchor_input:
+                row["effective_anchor_input"] = effective_anchor_input
             synth_rows.append(row)
             local_idx += 1
         print(f"[comfyui] prompt_id={prompt_id} accumulated={len(synth_rows)}/{target_count}")

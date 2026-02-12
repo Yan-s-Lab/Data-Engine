@@ -21,6 +21,7 @@ What is real today:
   - `local_stub` (local image augmentation)
   - `comfyui` (real generation via ComfyUI `/prompt`)
   - ComfyUI mode supports `client_id`, `extra_data`, optional websocket completion wait, and `/history` fallback
+  - ComfyUI mode now supports API-graph-native prompt injection and real-anchor image input injection by config
 - Label Studio integration exists as independent CLIs:
   - push tasks from manifest JSONL
   - pull tasks/annotations and flatten to JSONL
@@ -59,7 +60,11 @@ Structure is **reasonable for CLI-first research iteration**:
 - `synth/run_generate.py`
   - supports `generate.backend` dispatch (`local_stub` / `comfyui`)
   - in `comfyui` mode:
+    - accepts ComfyUI API prompt graph via `generate.comfyui.workflow` or inline `generate.comfyui.prompt_graph`
+    - validates and rejects UI workflow JSON shape early with explicit error
     - submits `/prompt` with optional `client_id` and `extra_data`
+    - optional text prompt injection to configured node/input (`generate.comfyui.prompt.*`)
+    - optional per-anchor image upload via `/upload/image` and node/input injection (`generate.comfyui.anchor_image.*`)
     - optional websocket wait (`executing` completion signal), then fetches final outputs from `/history`
     - downloads generated images via `/view`
     - writes `generate/{synth_manifest.jsonl,mixed_manifest.jsonl,report.json}`

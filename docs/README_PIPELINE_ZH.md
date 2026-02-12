@@ -57,7 +57,7 @@ python main.py --listen 0.0.0.0 --port 8188 --highvram
 
 至少确认这两个字段:
 - `generate.comfyui.base_url`（默认 `http://127.0.0.1:8188`）
-- `generate.comfyui.workflow`（你的 API workflow json 路径）
+- `generate.comfyui.workflow`（你的 **API prompt graph** 路径，不是 UI workflow 导出）
 
 ### 3.3 运行闭环
 ```bash
@@ -121,9 +121,15 @@ ComfyUI 专属:
 3. ComfyUI 一直无结果
 - 确认 ComfyUI 服务已启动、端口正确
 - 先把 `wait_mode` 设为 `history`
-- 检查 workflow 是否是 API 导出格式（不是 UI 原始格式）
+- 检查 `generate.comfyui.workflow` 是否是 API prompt graph 格式（不是 UI 原始 workflow）
 
-4. `websocket` 模式报错
+4. 想完全用配置/API，不想走 UI 导出
+- 可以直接在配置里使用 `generate.comfyui.prompt_graph`（内联 API graph）
+- 或者在 `generate.comfyui.workflow` 指向手写/程序生成的 API graph json/yaml
+- 可选用 `generate.comfyui.prompt.*` 把文本 prompt 注入指定节点
+- 可选用 `generate.comfyui.anchor_image.*` 把每个 real-anchor 图片上传到 ComfyUI，并注入到指定图像输入节点
+
+5. `websocket` 模式报错
 - 当前环境缺少可用 websocket sync 客户端或连接失败
 - 先用 `wait_mode: history` 验证跑通
 
