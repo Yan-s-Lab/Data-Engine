@@ -27,6 +27,9 @@ generate:
     base_url: http://127.0.0.1:8188
     workflow: configs/examples/comfyui/flux_dev_api_img2img.json
     wait_mode: history
+    # Submit multiple prompts in flight and poll history asynchronously.
+    non_blocking: true
+    max_inflight: 3
     ws_fallback_to_history: true
     client_id: data-engine-api-demo
     extra_data: {}
@@ -36,13 +39,31 @@ generate:
       node_id: "6"
       input_key: text
       text_template: "photorealistic side-profile portrait, natural skin texture, realistic lighting, anchor sample {sample_id}"
-    anchor_image:
-      node_id: "40"
-      input_key: image
-      path_field: image_path
-      upload: true
-      upload_overwrite: true
-      upload_subfolder: ""
+    # Backward compatible single anchor injection.
+    # anchor_image:
+    #   node_id: "40"
+    #   input_key: image
+    #   path_field: image_path
+    #   upload: true
+    #   upload_overwrite: true
+    #   upload_subfolder: ""
+    # Multi-anchor injection: useful for pose/canny dual-control workflows.
+    # Replace node_id values below with image-input nodes from your own workflow.
+    anchor_images:
+      - name: pose_control
+        node_id: "40"
+        input_key: image
+        path_field: image_path
+        upload: true
+        upload_overwrite: true
+        upload_subfolder: ""
+      - name: canny_control
+        node_id: "40"
+        input_key: image
+        path_field: image_path
+        upload: true
+        upload_overwrite: true
+        upload_subfolder: ""
     timeout_sec: 300
     poll_interval_sec: 1.0
     max_outputs_per_job: 1

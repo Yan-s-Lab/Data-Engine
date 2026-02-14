@@ -1,0 +1,34 @@
+run:
+  run_id: yk001_prompt_canny_demo
+  artifacts_root: artifacts/runs
+
+generate:
+  backend: comfyui
+  real_manifest: artifacts/runs/dataloader_norm_test/dataloader/real_manifest.jsonl
+  synth_per_real: 1
+  max_synth_samples: 20
+  seed_base: 20260212
+  comfyui:
+    base_url: http://127.0.0.1:8188
+    workflow: configs/examples/comfyui/flux_dev_api_img2img.json
+    wait_mode: history
+    non_blocking: true
+    max_inflight: 4
+    client_id: yk001-prompt-canny
+    seed_node_id: "25"
+    seed_input_key: noise_seed
+    prompt:
+      node_id: "6"
+      input_key: text
+      text_template: "deltoid muscle region, realistic skin details, natural pose, sample={sample_id}"
+    anchor_images:
+      - name: canny_control
+        node_id: "40"
+        input_key: image
+        path_field: image_path
+        upload: true
+        upload_overwrite: true
+        upload_subfolder: ""
+    timeout_sec: 300
+    poll_interval_sec: 1.0
+    max_outputs_per_job: 1

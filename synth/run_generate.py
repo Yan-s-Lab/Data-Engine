@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from copy import deepcopy
 import json
+import math
 from pathlib import Path
 import random
 import sys
@@ -83,6 +84,15 @@ def wait_history(
             return history[prompt_id]
         time.sleep(poll_interval_sec)
     raise TimeoutError(f"ComfyUI prompt {prompt_id} timeout after {timeout_sec}s")
+
+
+def fetch_history_once(base_url: str, prompt_id: str) -> Dict[str, Any] | None:
+    resp = requests.get(f"{base_url}/history/{prompt_id}", timeout=30)
+    resp.raise_for_status()
+    history = resp.json()
+    if prompt_id in history:
+        return history[prompt_id]
+    return None
 
 
 def to_ws_url(base_url: str, client_id: str) -> str:
@@ -299,6 +309,55 @@ def set_workflow_anchor_image(
     return value
 
 
+def normalize_anchor_configs(comfy_cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
+    cfgs: List[Dict[str, Any]] = []
+    single_cfg = comfy_cfg.get("anchor_image", {})
+    if single_cfg is None:
+        single_cfg = {}
+    if not isinstance(single_cfg, dict):
+        raise ValueError("generate.comfyui.anchor_image must be a dict when provided")
+    if str(single_cfg.get("node_id", "")).strip():
+        cfgs.append(single_cfg)
+
+    multi_cfg = comfy_cfg.get("anchor_images", [])
+    if multi_cfg is None:
+        multi_cfg = []
+    if not isinstance(multi_cfg, list):
+        raise ValueError("generate.comfyui.anchor_images must be a list when provided")
+    for idx, item in enumerate(multi_cfg):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"generate.comfyui.anchor_images[{idx}] must be a mapping"
+            )
+        if str(item.get("node_id", "")).strip():
+            cfgs.append(item)
+    return cfgs
+
+
+def apply_anchor_images(
+    workflow: Dict[str, Any],
+    anchor_cfgs: List[Dict[str, Any]],
+    anchor_row: Dict[str, Any],
+    base_url: str,
+) -> Dict[str, str]:
+    effective: Dict[str, str] = {}
+    for idx, cfg in enumerate(anchor_cfgs):
+        injected = set_workflow_anchor_image(
+            workflow=workflow,
+            anchor_cfg=cfg,
+            anchor_row=anchor_row,
+            base_url=base_url,
+        )
+        if not injected:
+            continue
+        name = str(cfg.get("name", "")).strip() or f"anchor_{idx}"
+        node_id = str(cfg.get("node_id", "")).strip()
+        input_key = str(cfg.get("input_key", "image")).strip()
+        key = f"{name}:{node_id}.{input_key}"
+        effective[key] = injected
+    return effective
+
+
 def generate_with_local_stub(
     real_rows: List[Dict[str, Any]], gen_cfg: Dict[str, Any], img_dir: Path
 ) -> List[Dict[str, Any]]:
@@ -359,12 +418,12 @@ def generate_with_comfyui(
         prompt_cfg = {}
     if not isinstance(prompt_cfg, dict):
         raise ValueError("generate.comfyui.prompt must be a dict when provided")
-    anchor_cfg = comfy_cfg.get("anchor_image", {})
-    if anchor_cfg is None:
-        anchor_cfg = {}
-    if not isinstance(anchor_cfg, dict):
-        raise ValueError("generate.comfyui.anchor_image must be a dict when provided")
+    anchor_cfgs = normalize_anchor_configs(comfy_cfg)
     prompt_graph_template, prompt_graph_source = load_prompt_graph(comfy_cfg)
+    non_blocking = bool(comfy_cfg.get("non_blocking", False))
+    max_inflight = int(comfy_cfg.get("max_inflight", 4))
+    if max_inflight <= 0:
+        raise ValueError("generate.comfyui.max_inflight must be > 0")
 
     synth_per_real = int(gen_cfg.get("synth_per_real", 1))
     max_synth = int(gen_cfg.get("max_synth_samples", 0))
@@ -379,21 +438,22 @@ def generate_with_comfyui(
     synth_rows: List[Dict[str, Any]] = []
     local_idx = 0
     job_idx = 0
+    outputs_per_job = max(max_outputs_per_job, 1)
 
-    while local_idx < target_count:
-        seed = seed_base + job_idx
-        anchor = real_rows[local_idx % len(real_rows)]
+    def prepare_job(idx: int) -> Dict[str, Any]:
+        seed = seed_base + idx
+        anchor = real_rows[idx % len(real_rows)]
         workflow = deepcopy(prompt_graph_template)
         set_workflow_seed(workflow, seed_node_id, seed_input_key, seed)
         effective_prompt_text = set_workflow_prompt_text(
             workflow=workflow,
             prompt_cfg=prompt_cfg,
             anchor_row=anchor,
-            sample_idx=local_idx,
+            sample_idx=idx,
         )
-        effective_anchor_input = set_workflow_anchor_image(
+        effective_anchor_inputs = apply_anchor_images(
             workflow=workflow,
-            anchor_cfg=anchor_cfg,
+            anchor_cfgs=anchor_cfgs,
             anchor_row=anchor,
             base_url=base_url,
         )
@@ -403,50 +463,123 @@ def generate_with_comfyui(
             client_id=client_id,
             extra_data=extra_data,
         )
-        if wait_mode == "websocket":
-            try:
-                wait_websocket_executing_done(
-                    base_url=base_url,
-                    client_id=client_id,
-                    prompt_id=prompt_id,
-                    timeout_sec=timeout_sec,
-                )
-            except Exception:
-                if not ws_fallback_to_history:
-                    raise
-        history_entry = wait_history(
-            base_url=base_url,
-            prompt_id=prompt_id,
-            timeout_sec=timeout_sec,
-            poll_interval_sec=poll_interval_sec,
-        )
-        out_rows = download_history_outputs(
-            base_url=base_url,
-            history_entry=history_entry,
-            out_dir=img_dir,
-            sample_start_idx=local_idx,
-            max_outputs_per_job=max_outputs_per_job,
-        )
-        if not out_rows:
-            job_idx += 1
-            continue
+        return {
+            "prompt_id": prompt_id,
+            "seed": seed,
+            "anchor": anchor,
+            "effective_prompt_text": effective_prompt_text,
+            "effective_anchor_inputs": effective_anchor_inputs,
+            "submitted_at": time.time(),
+        }
 
+    def append_rows(
+        out_rows: List[Dict[str, Any]],
+        meta: Dict[str, Any],
+        current_local_idx: int,
+    ) -> int:
+        next_local_idx = current_local_idx
         for row in out_rows:
-            if local_idx >= target_count:
+            if next_local_idx >= target_count:
                 break
-            row["anchor_real_sample_id"] = anchor.get("sample_id")
-            row["anchor_real_image_path"] = anchor.get("image_path")
-            row["comfy_prompt_id"] = prompt_id
-            row["seed"] = seed
+            row["anchor_real_sample_id"] = meta["anchor"].get("sample_id")
+            row["anchor_real_image_path"] = meta["anchor"].get("image_path")
+            row["comfy_prompt_id"] = meta["prompt_id"]
+            row["seed"] = meta["seed"]
             row["comfy_prompt_graph_source"] = prompt_graph_source
-            if effective_prompt_text:
-                row["effective_prompt_text"] = effective_prompt_text
-            if effective_anchor_input:
-                row["effective_anchor_input"] = effective_anchor_input
+            if meta["effective_prompt_text"]:
+                row["effective_prompt_text"] = meta["effective_prompt_text"]
+            effective_anchor_inputs = meta["effective_anchor_inputs"]
+            if effective_anchor_inputs:
+                if len(effective_anchor_inputs) == 1:
+                    row["effective_anchor_input"] = next(iter(effective_anchor_inputs.values()))
+                row["effective_anchor_inputs"] = effective_anchor_inputs
             synth_rows.append(row)
-            local_idx += 1
-        print(f"[comfyui] prompt_id={prompt_id} accumulated={len(synth_rows)}/{target_count}")
-        job_idx += 1
+            next_local_idx += 1
+        return next_local_idx
+
+    if non_blocking:
+        if wait_mode == "websocket":
+            raise ValueError(
+                "generate.comfyui.non_blocking=true only supports wait_mode=history"
+            )
+        inflight: List[Dict[str, Any]] = []
+        while local_idx < target_count:
+            remaining = target_count - local_idx
+            required_inflight = min(max_inflight, math.ceil(remaining / outputs_per_job))
+            while len(inflight) < required_inflight:
+                meta = prepare_job(job_idx)
+                inflight.append(meta)
+                print(
+                    f"[comfyui] submitted prompt_id={meta['prompt_id']} inflight={len(inflight)}"
+                )
+                job_idx += 1
+
+            if not inflight:
+                raise RuntimeError(
+                    "non-blocking generation cannot continue: no inflight jobs and target not reached"
+                )
+
+            ready_jobs: List[tuple[int, Dict[str, Any], Dict[str, Any]]] = []
+            now = time.time()
+            for idx, meta in enumerate(inflight):
+                if now - float(meta["submitted_at"]) > timeout_sec:
+                    raise TimeoutError(
+                        f"ComfyUI prompt {meta['prompt_id']} timeout after {timeout_sec}s"
+                    )
+                history_entry = fetch_history_once(base_url, str(meta["prompt_id"]))
+                if history_entry is not None:
+                    ready_jobs.append((idx, meta, history_entry))
+
+            if not ready_jobs:
+                time.sleep(poll_interval_sec)
+                continue
+
+            for idx, meta, history_entry in reversed(ready_jobs):
+                out_rows = download_history_outputs(
+                    base_url=base_url,
+                    history_entry=history_entry,
+                    out_dir=img_dir,
+                    sample_start_idx=local_idx,
+                    max_outputs_per_job=max_outputs_per_job,
+                )
+                if out_rows:
+                    local_idx = append_rows(out_rows, meta, local_idx)
+                print(
+                    f"[comfyui] prompt_id={meta['prompt_id']} accumulated={len(synth_rows)}/{target_count}"
+                )
+                inflight.pop(idx)
+    else:
+        while local_idx < target_count:
+            meta = prepare_job(job_idx)
+            prompt_id = str(meta["prompt_id"])
+            if wait_mode == "websocket":
+                try:
+                    wait_websocket_executing_done(
+                        base_url=base_url,
+                        client_id=client_id,
+                        prompt_id=prompt_id,
+                        timeout_sec=timeout_sec,
+                    )
+                except Exception:
+                    if not ws_fallback_to_history:
+                        raise
+            history_entry = wait_history(
+                base_url=base_url,
+                prompt_id=prompt_id,
+                timeout_sec=timeout_sec,
+                poll_interval_sec=poll_interval_sec,
+            )
+            out_rows = download_history_outputs(
+                base_url=base_url,
+                history_entry=history_entry,
+                out_dir=img_dir,
+                sample_start_idx=local_idx,
+                max_outputs_per_job=max_outputs_per_job,
+            )
+            if out_rows:
+                local_idx = append_rows(out_rows, meta, local_idx)
+            print(f"[comfyui] prompt_id={prompt_id} accumulated={len(synth_rows)}/{target_count}")
+            job_idx += 1
 
     return synth_rows
 
@@ -504,6 +637,11 @@ def main() -> None:
         "mixed_count": len(mixed_rows),
         "synth_per_real": int(gen_cfg.get("synth_per_real", 1)),
     }
+    if backend == "comfyui":
+        comfy_cfg = gen_cfg.get("comfyui", {})
+        if isinstance(comfy_cfg, dict):
+            report["non_blocking"] = bool(comfy_cfg.get("non_blocking", False))
+            report["max_inflight"] = int(comfy_cfg.get("max_inflight", 4))
     write_json(gen_dir / "report.json", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
