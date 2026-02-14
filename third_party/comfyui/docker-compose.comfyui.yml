@@ -1,0 +1,35 @@
+services:
+  comfyui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        COMFYUI_REPO: ${COMFYUI_REPO:-https://github.com/comfyanonymous/ComfyUI.git}
+        COMFYUI_REF: ${COMFYUI_REF:-master}
+    image: ${COMFYUI_IMAGE:-dataengine-comfyui:local}
+    container_name: ${COMFYUI_CONTAINER_NAME:-comfyui-service}
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    environment:
+      COMFYUI_PORT: 8188
+      COMFYUI_EXTRA_ARGS: ${COMFYUI_EXTRA_ARGS:---disable-auto-launch}
+    volumes:
+      - ../../data/comfyui/models:/app/models
+      - ../../data/comfyui/output:/app/output
+      - ../../data/comfyui/custom_nodes:/app/custom_nodes
+      - ../../data/comfyui/comfyui_workflows:/app/user/default/workflows
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8188/system_stats"]
+      interval: 30s
+      timeout: 8s
+      retries: 5
+      start_period: 20s

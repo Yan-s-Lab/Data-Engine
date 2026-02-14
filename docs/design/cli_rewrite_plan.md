@@ -36,6 +36,8 @@ Priority:
 
 5. ThirdPartRunner
 - adapters for ComfyUI, Label Studio, and other external capabilities
+- ComfyUI adapter should support async-style queue submission/polling and multi-control image injection for research iteration speed
+- third-party services should provide repo-local bootstrap contracts (check -> start), with docker compose as canonical startup surface for single-node research loops
 
 6. ConfigurablePipeliner
 - compose CLI stages by config

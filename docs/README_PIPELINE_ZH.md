@@ -45,10 +45,31 @@ python pipelines/run_yaml_pipeline.py \
 
 ## 3. 真实生成版（接 ComfyUI）
 
-### 3.1 启动 ComfyUI 服务
-在 ComfyUI 目录执行:
+### 3.1 启动 ComfyUI 服务（先检查，不通再启动）
+项目内置了 ComfyUI 第三方子系统编排文件，统一入口:
 ```bash
-python main.py --listen 0.0.0.0 --port 8188 --highvram
+./third_party/comfyui/comfyui_ctl.sh ensure
+```
+
+说明:
+- `ensure`: 先检查 `http://127.0.0.1:8188/system_stats`，可用则直接复用；不可用则 `docker compose up -d --build`
+- `status`: `./third_party/comfyui/comfyui_ctl.sh status`
+- `logs`: `./third_party/comfyui/comfyui_ctl.sh logs`
+- 兼容旧入口（含 GPU 检查）:
+```bash
+./third_party/comfyui/run_comfyui.sh
+```
+- 模型/权重下载（可单独执行）:
+```bash
+./third_party/comfyui/download_models.sh
+```
+- `run_comfyui.sh` 默认会执行模型检查与下载；如需跳过:
+```bash
+DOWNLOAD_MODELS=0 ./third_party/comfyui/run_comfyui.sh
+```
+- 如果需要自定义参数，先复制环境模板:
+```bash
+cp third_party/comfyui/.env.example third_party/comfyui/.env
 ```
 
 ### 3.2 准备配置
@@ -84,6 +105,8 @@ python pipelines/run_yaml_pipeline.py \
 
 ComfyUI 专属:
 - `generate.comfyui.wait_mode`: `history` 或 `websocket`
+- `generate.comfyui.non_blocking`: 是否启用“多 prompt 并发提交 + 轮询 history”的非阻塞模式（建议配 `history`）
+- `generate.comfyui.max_inflight`: 非阻塞模式下最多并发中的 prompt 数
 - `generate.comfyui.client_id`: 可固定，便于追踪
 - `generate.comfyui.extra_data`: 透传到 `/prompt`（比如 API key）
 - `generate.comfyui.seed_node_id`: workflow 中要注入 seed 的节点 id
@@ -119,7 +142,7 @@ ComfyUI 专属:
 - `generate.comfyui.workflow` 路径错误
 
 3. ComfyUI 一直无结果
-- 确认 ComfyUI 服务已启动、端口正确
+- 先执行 `./third_party/comfyui/comfyui_ctl.sh ensure`
 - 先把 `wait_mode` 设为 `history`
 - 检查 `generate.comfyui.workflow` 是否是 API prompt graph 格式（不是 UI 原始 workflow）
 
@@ -128,6 +151,7 @@ ComfyUI 专属:
 - 或者在 `generate.comfyui.workflow` 指向手写/程序生成的 API graph json/yaml
 - 可选用 `generate.comfyui.prompt.*` 把文本 prompt 注入指定节点
 - 可选用 `generate.comfyui.anchor_image.*` 把每个 real-anchor 图片上传到 ComfyUI，并注入到指定图像输入节点
+- 若 workflow 里有多个控制图入口（如 pose+canny），可用 `generate.comfyui.anchor_images[]` 一次注入多个节点输入
 
 5. `websocket` 模式报错
 - 当前环境缺少可用 websocket sync 客户端或连接失败
@@ -147,4 +171,11 @@ ComfyUI 真实生成回归:
 ```bash
 python pipelines/run_yaml_pipeline.py \
   --config configs/examples/min_single_node_closed_loop_comfyui.yaml
+```
+
+单控制任务（只跑 generate）:
+```bash
+python synth/run_generate.py --config configs/examples/comfyui_generate_from_norm_yk001_prompt_pose.yaml
+python synth/run_generate.py --config configs/examples/comfyui_generate_from_norm_yk001_prompt_canny.yaml
+python synth/run_generate.py --config configs/examples/comfyui_generate_from_norm_yk001_prompt_style.yaml
 ```

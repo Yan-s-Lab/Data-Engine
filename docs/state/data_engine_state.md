@@ -71,9 +71,25 @@ Structure is **reasonable for CLI-first research iteration**:
     - submits `/prompt` with optional `client_id` and `extra_data`
     - optional text prompt injection to configured node/input (`generate.comfyui.prompt.*`)
     - optional per-anchor image upload via `/upload/image` and node/input injection (`generate.comfyui.anchor_image.*`)
+    - optional multi-anchor image injection for multi-control workflows (`generate.comfyui.anchor_images[]`)
+    - optional non-blocking batch submit/poll mode (`generate.comfyui.non_blocking`, `generate.comfyui.max_inflight`)
     - optional websocket wait (`executing` completion signal), then fetches final outputs from `/history`
     - downloads generated images via `/view`
     - writes `generate/{synth_manifest.jsonl,mixed_manifest.jsonl,report.json}`
+- `third_party/comfyui/docker-compose.comfyui.yml`
+  - ComfyUI third-party subsystem compose entry (GPU container + mounted models/output/custom_nodes/workflows)
+- `third_party/comfyui/comfyui_ctl.sh`
+  - check-first startup controller for ComfyUI (`ensure/check/status/start/stop/logs`)
+  - `ensure` probes `/system_stats` first, then starts via docker compose when unavailable
+- `third_party/comfyui/run_comfyui.sh`
+  - compatibility launcher with GPU pre-check, then delegates to `comfyui_ctl.sh ensure`
+  - optional model bootstrap (`DOWNLOAD_MODELS=1` by default)
+- `third_party/comfyui/Dockerfile`
+  - image definition for ComfyUI runtime container used by compose entry
+- `third_party/comfyui/models.yaml`
+  - declarative model/weights manifest reused from historical infra workflow
+- `third_party/comfyui/download_models.sh`
+  - model downloader for HuggingFace/Civitai targets into `data/comfyui/models`
 - `synth/comfyui_to_collection.py`
   - creates collection run via `common.gateway_client.create_collection_run`
   - zips flat image directory via `common.archive.zip_flat_dir`
@@ -155,6 +171,9 @@ Current CLIs assume these external services are available:
 - ComfyUI HTTP API (default `http://127.0.0.1:8188`)
 - collection-gateway (via `COLLECTION_GATEWAY_URL`, default `http://localhost:8001`)
 - Label Studio API (`/api/projects/{id}/import`, `/api/tasks`)
+
+ComfyUI startup can be managed from this repo:
+- `./third_party/comfyui/comfyui_ctl.sh ensure`
 
 ## Known Risks / Tech Debt
 
