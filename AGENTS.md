@@ -306,3 +306,26 @@ Never assume features exist unless verified.
 > This system optimizes for understanding and controlling data evolution.
 
 We refine thinking before optimizing infrastructure.
+
+# 11. Execution Environment (Hard Constraint)
+
+The conda environment is part of the experimental state.
+
+All CLI modules, scripts, and agent-invoked commands in this repository
+must be executed inside the following conda environment:
+
+   "open_data_engine"
+
+Running any command outside this environment is considered an invalid
+experiment and may lead to irreproducible or undefined behavior.
+
+Agents must not:
+- execute CLI modules from the `base` environment
+- execute CLI modules from unrelated conda environments
+- assume environment correctness without verification
+
+If environment verification logic exists in code (e.g. CLI preflight checks),
+agents must not bypass or remove it.
+
+Environment correctness must be treated as a first-class precondition,
+not a convenience.
