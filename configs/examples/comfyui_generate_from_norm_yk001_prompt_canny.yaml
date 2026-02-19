@@ -10,25 +10,34 @@ generate:
   seed_base: 20260212
   comfyui:
     base_url: http://127.0.0.1:8188
-    workflow: configs/examples/comfyui/flux_dev_api_img2img.json
+    workflow: configs/examples/comfyui/flux_canny_model_example.json
     wait_mode: history
     non_blocking: true
-    max_inflight: 4
+    max_inflight: 2
+    on_timeout: retry
+    timeout_retries: 2
     client_id: yk001-prompt-canny
-    seed_node_id: "25"
-    seed_input_key: noise_seed
+    seed_node_id: "3"
+    seed_input_key: seed
     prompt:
-      node_id: "6"
+      node_id: "23"
       input_key: text
-      text_template: "deltoid muscle region, realistic skin details, natural pose, sample={sample_id}"
+      template_file: configs/examples/arm_deltoid_template.txt
+      # render_template=false: text_template 原样传给 ComfyUI，让 ComfyUI 端解析动态符号。
+      render_template: false
+    filename_prefix:
+      node_id: "9"
+      input_key: filename_prefix
+      dataloader_config: configs/examples/dataloader_norm_test.yaml
+      template: "{services_id}_{task_name}_canny"
     anchor_images:
       - name: canny_control
-        node_id: "40"
+        node_id: "17"
         input_key: image
         path_field: image_path
         upload: true
         upload_overwrite: true
         upload_subfolder: ""
-    timeout_sec: 300
+    timeout_sec: 1800
     poll_interval_sec: 1.0
     max_outputs_per_job: 1

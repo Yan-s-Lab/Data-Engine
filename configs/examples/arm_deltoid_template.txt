@@ -1,0 +1,7 @@
+A photorealistic scene inside a {scene_type}, with {background_detail}.
+Subject: a seated {age_group} {ethnicity} {gender} with {body_type}, {hair_style}, {skin_texture}, {skin_tone}, and {scars}, wearing a {clothing}, with the {deltoid_exposed_side} sleeve completely removed from the arm and tucked securely under the armpit, leaving the {deltoid_exposed_side} shoulder and upper arm fully exposed while keeping the chest and back covered.
+Seated on a {seat_type}, positioned comfortably.
+Pose and framing: The subject sits upright, fully side-facing the camera, exposing the {deltoid_exposed_side} shoulder and upper arm in a centered lateral profile.
+Lighting: {primary_light}, {secondary_fill}, {rim_light}.
+Focus: high-resolution skin texture and clearly defined deltoid contour; background rendered with shallow depth of field.
+Mood: {mood}.
