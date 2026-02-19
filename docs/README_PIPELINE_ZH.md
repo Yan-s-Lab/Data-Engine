@@ -221,3 +221,7 @@ python synth/run_generate.py --config configs/examples/comfyui_generate_from_nor
 python synth/run_generate.py --config configs/examples/comfyui_generate_from_norm_yk001_prompt_canny.yaml
 python synth/run_generate.py --config configs/examples/comfyui_generate_from_norm_yk001_prompt_style.yaml
 ```
+
+OpenPose 前置（real 图 -> keypoints JSON -> 黑底 pose 控制图）:
+- 文档：`third_party/posedetection/README.md`
+- 一键脚本：`third_party/posedetection/run_openpose_to_control.sh`

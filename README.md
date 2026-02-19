@@ -4,6 +4,7 @@ This branch is the CLI-first rewrite scaffold.
 
 ## 中文手册（傻瓜式）
 - `docs/README_PIPELINE_ZH.md`
+- OpenPose 前置（submodule + 构建 + pose 控制图生成）：`third_party/posedetection/README.md`
 
 ## 1) Generate synthetic images via ComfyUI
 ```bash
