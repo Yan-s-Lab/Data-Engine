@@ -12,6 +12,26 @@ models:
     files:
       - flux1-dev-fp8.safetensors # 量化版本 17GB
       - flux1-dev.safetensors # 22GB
+      - split_files/diffusion_models/flux1-canny-dev.safetensors # 23.8GB
+      - split_files/diffusion_models/flux1-fill-dev.safetensors
+  
+  # FDI fine-tune
+  - name: flux1-dev
+    type: diffusion
+    dest: diffusion_models
+    source: huggingface
+    repo: Comfy-Org/FLUX.1-Krea-dev_ComfyUI
+    files:
+      - split_files/diffusion_models/flux1-krea-dev_fp8_scaled.safetensors
+
+  # FDI fine-tune
+  - name: flux1-dev
+    type: diffusion
+    dest: diffusion_models
+    source: huggingface
+    repo: Comfy-Org/OneReward_repackaged
+    files:
+      - split_files/diffusion_models/flux.1-fill-dev-OneReward-transformer_fp8.safetensors
 
   - name: flux1-text-encoders
     type: text_encoder
@@ -21,6 +41,14 @@ models:
     files:
       - t5xxl_fp16.safetensors
       - clip_l.safetensors
+
+  - name: flux1-text-encoders
+    type: text_encoder
+    dest: text_encoders
+    source: huggingface
+    repo: Comfy-Org/Wan_2.1_ComfyUI_repackaged
+    files:
+      - split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors
 
   - name: flux1-vae
     type: vae
@@ -40,6 +68,14 @@ models:
     repo: Comfy-Org/Qwen-Image-DiffSynth-ControlNets
     files:
       - split_files/model_patches/qwen_image_canny_diffsynth_controlnet.safetensors
+
+  - name: qwen-image-edit
+    type: diffusion
+    dest: diffusion_models
+    source: huggingface
+    repo: Comfy-Org/Qwen-Image-Edit_ComfyUI
+    files:
+      - split_files/diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors
 
   - name: qwen-vae
     type: vae
@@ -75,7 +111,16 @@ models:
     repo: lightx2v/Qwen-Image-Lightning
     files:
       - Qwen-Image-Lightning-4steps-V1.0.safetensors
+      - Qwen-Image-Edit-2509/Qwen-Image-Edit-2509-Lightning-4steps-V1.0-bf16.safetensors
 
+  - name: flux-fill
+    type: lora
+    dest: loras
+    source: huggingface
+    repo: lrzjason/ObjectRemovalFluxFill
+    files:
+      - removal_timestep_alpha-2-1740.safetensors
+    
   # ================================
   # ControlNet OpenPose
   # ================================
