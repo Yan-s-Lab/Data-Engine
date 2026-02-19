@@ -37,7 +37,7 @@ What is real today:
 
 What is not in this repository now:
 - No local `collection-gateway` service implementation.
-- No real model training/evaluation/filter algorithms yet (current implementation is stub logic).
+- No real model training/evaluation algorithms yet (training/eval are currently stub logic).
 - No end-to-end closed-loop policy update implementation.
 - No full DataLoader kernel contract for global cross-machine identity/provenance management yet.
 
@@ -108,7 +108,18 @@ Structure is **reasonable for CLI-first research iteration**:
   - flattens annotations to JSONL for downstream use
 - `filter/run_filter.py`
   - reads config, builds/loads manifest, writes split artifacts (`accept/reject/uncertain`)
+  - supports `filter.mode: stub|pcs_clip|staged_clip|compose`
+  - `pcs_clip` mode performs block-shuffle perturbation and CLIP image similarity scoring
+  - `staged_clip` mode runs modular filter stages and produces weighted final scores
+  - `compose` mode runs configurable stage switches + policy gates/weighted fusion
   - writes filter scores + stage report
+- `filter/filter_stages/`
+  - `clip_embed_cache.py`: CLIP runtime + embedding cache
+  - `clip_prompt_score.py`: prompt alignment score + positive-negative prompt margin score
+  - `clip_consistency.py`: perturb consistency score + multi-crop consistency score
+  - `clip_anchor_ood.py`: anchor-manifold Mahalanobis OOD scoring
+  - `clip_dedup.py`: duplicate similarity score
+  - `quality_rules.py`: blur/exposure quality scores
 - `train/run_train.py`
   - consumes filter `accept` split
   - writes train manifest, mix report, and model stub artifact
@@ -152,7 +163,7 @@ Current progress level by subsystem:
 - Synth generation: **L3** (single-node pipeline-connected; configurable local/comfyui backend)
 - Label/HITL bridge: **L2** (push/pull APIs available)
 - Embed: **L0** (not implemented)
-- Filter (ASF/PCS/policy): **L2** (stub filter decisions + split artifacts, no plugin kernel)
+- Filter (ASF/PCS/policy): **L2** (stub + PCS-CLIP runnable decisions + split artifacts, no plugin kernel)
 - Train (real + synthetic mixing): **L2** (stub train mix + model artifact)
 - Eval + slice failure analysis: **L2** (stub metrics + failure report)
 - Feedback-driven policy refinement: **L1** (policy suggestion artifact only)

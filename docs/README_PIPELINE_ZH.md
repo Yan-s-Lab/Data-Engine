@@ -113,7 +113,16 @@ ComfyUI 专属:
 - `generate.comfyui.seed_input_key`: 一般是 `seed`
 
 ### 4.3 filter/train/eval
+- `filter.mode`: `stub` / `pcs_clip` / `staged_clip`
+- `filter.keep_real_always`（`staged_clip` 默认 `true`，真实样本强制保留）
 - `filter.accept_threshold`
+- `filter.uncertain_low` / `filter.uncertain_high`
+- `filter.clip_model_id`（`pcs_clip` 模式）
+- `filter.pcs.repeats`（扰动次数）
+- `filter.pcs.grid_rows` / `filter.pcs.grid_cols`（像素块网格）
+- `filter.pcs.swap_ratio`（每次扰动打乱比例）
+- `filter.pcs.synthetic_only`（只对 synthetic 跑 PCS）
+- `filter.score.*`（`staged_clip` 的加权融合参数）
 - `train.max_train_samples`
 - `eval.target_map50`
 
@@ -171,6 +180,39 @@ ComfyUI 真实生成回归:
 ```bash
 python pipelines/run_yaml_pipeline.py \
   --config configs/examples/min_single_node_closed_loop_comfyui.yaml
+```
+
+PCS-CLIP 过滤回归（像素块扰动 + CLIP 相似度）:
+```bash
+python pipelines/run_yaml_pipeline.py \
+  --config configs/examples/min_single_node_closed_loop_pcs_clip.yaml
+```
+
+分层过滤 smoke（`clip_embed_cache -> prompt -> consistency -> dedup -> quality`）:
+```bash
+python pipelines/run_yaml_pipeline.py \
+  --config configs/examples/min_single_node_closed_loop_staged_clip.yaml
+```
+
+可组合过滤 smoke（按 `stages + policy` 组合 Filter）:
+```bash
+python pipelines/run_yaml_pipeline.py \
+  --config configs/examples/min_single_node_closed_loop_compose_clip.yaml
+```
+
+`staged_clip` 产出的 `filter/filter_scores.jsonl` 行格式示例:
+```json
+{
+  "image_id": "...",
+  "s_prompt_margin": 0.18,
+  "s_multicrop_consistency": 0.86,
+  "ood_md2": 24.1,
+  "dup_sim": 0.997,
+  "blur_score": 12.4,
+  "final_score": 0.68,
+  "keep": false,
+  "decision_basis": "tri_gate"
+}
 ```
 
 单控制任务（只跑 generate）:
