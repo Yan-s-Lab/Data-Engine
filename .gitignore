@@ -8,5 +8,4 @@ third_party/openpose/build/
 third_party/openpose/
 third_party/runs/
 runs/
-**/.temp/**
-*/**/normalize_x_column.py
+**/.temp
