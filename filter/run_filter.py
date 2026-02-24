@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 from common.config_io import load_config, resolve_run_dir
 from common.manifest_io import read_jsonl, write_json, write_jsonl
 from filter.filter_stages import (
+    compute_anchor_semantic_scores,
     build_image_embeddings,
     compute_anchor_ood_scores,
     compute_consistency_scores,
@@ -332,6 +333,7 @@ def run_pcs_clip_filter(
 
 def _stage_enabled_map(filter_cfg: Dict[str, Any]) -> Dict[str, bool]:
     defaults: Dict[str, bool] = {
+        "semantic_anchor": True,
         "prompt_score": True,
         "prompt_margin": True,
         "consistency": True,
@@ -451,6 +453,7 @@ def run_composed_clip_filter(
 
     score_cfg = dict(filter_cfg.get("score", {}))
     default_weighted = {
+        "s_semantic_anchor": float(score_cfg.get("w_semantic_anchor", 0.0)),
         "s_prompt": float(score_cfg.get("w_prompt", 0.30)),
         "s_consistency": float(score_cfg.get("w_consistency", 0.35)),
         "s_multicrop_consistency": float(score_cfg.get("w_multicrop", 0.0)),
@@ -469,6 +472,13 @@ def run_composed_clip_filter(
 
     sid_list = [str(r.get("sample_id", "")) for r in rows]
     prompt_scores: Dict[str, float] = {sid: 0.0 for sid in sid_list}
+    semantic_scores: Dict[str, Dict[str, float]] = {
+        sid: {
+            "s_semantic_anchor_raw": 0.0,
+            "s_semantic_anchor": 0.0,
+        }
+        for sid in sid_list
+    }
     prompt_margin_scores: Dict[str, Dict[str, float]] = {
         sid: {
             "s_prompt_pos": 0.0,
@@ -514,6 +524,20 @@ def run_composed_clip_filter(
         }
         for sid in sid_list
     }
+    semantic_cfg = dict(filter_cfg.get("semantic_anchor", {}))
+    if stages_enabled.get("semantic_anchor", True):
+        semantic_scores, semantic_state = compute_anchor_semantic_scores(
+            rows=rows,
+            image_embeddings=embeddings,
+            cfg=semantic_cfg,
+        )
+    else:
+        semantic_state = {
+            "enabled": False,
+            "reason": "disabled_by_stage_config",
+            "anchor_count": 0,
+            "reduce": str(semantic_cfg.get("reduce", "median")),
+        }
 
     if stages_enabled.get("prompt_score", True):
         prompt_scores = compute_prompt_scores(
@@ -586,6 +610,10 @@ def run_composed_clip_filter(
         sid = str(row.get("sample_id", ""))
         if metric_name == "s_prompt":
             return float(prompt_scores.get(sid, 0.0))
+        if metric_name == "s_semantic_anchor_raw":
+            return float(semantic_scores.get(sid, {}).get("s_semantic_anchor_raw", 0.0))
+        if metric_name == "s_semantic_anchor":
+            return float(semantic_scores.get(sid, {}).get("s_semantic_anchor", 0.0))
         if metric_name == "s_prompt_margin":
             return float(prompt_margin_scores.get(sid, {}).get("s_prompt_margin", 0.0))
         if metric_name == "s_prompt_margin_norm":
@@ -644,6 +672,8 @@ def run_composed_clip_filter(
         sample_id = str(row.get("sample_id", "unknown"))
         source = str(row.get("source", ""))
         s_prompt = metric_value("s_prompt", row)
+        s_semantic_anchor_raw = metric_value("s_semantic_anchor_raw", row)
+        s_semantic_anchor = metric_value("s_semantic_anchor", row)
         s_prompt_margin = metric_value("s_prompt_margin", row)
         s_prompt_margin_norm = metric_value("s_prompt_margin_norm", row)
         s_consistency = metric_value("s_consistency", row)
@@ -719,6 +749,8 @@ def run_composed_clip_filter(
                 "sample_id": sample_id,
                 "source": source,
                 "s_prompt": round(s_prompt, 6),
+                "s_semantic_anchor_raw": round(s_semantic_anchor_raw, 6),
+                "s_semantic_anchor": round(s_semantic_anchor, 6),
                 "s_prompt_margin": round(s_prompt_margin, 6),
                 "s_prompt_margin_norm": round(s_prompt_margin_norm, 6),
                 "s_prompt_pos": round(float(pm.get("s_prompt_pos", 0.0)), 6),
@@ -764,6 +796,17 @@ def run_composed_clip_filter(
             "gates": gates_cfg,
             "weighted_final_score": final_weight_map,
         },
+        "semantic_anchor": {
+            "enabled": bool(semantic_state.get("enabled", False)),
+            "reason": str(semantic_state.get("reason", "")) if not bool(semantic_state.get("enabled", False)) else "",
+            "anchor_count": int(semantic_state.get("anchor_count", 0)),
+            "reduce": str(semantic_state.get("reduce", semantic_cfg.get("reduce", "median"))),
+            "self_exclude_for_real": bool(semantic_state.get("self_exclude_for_real", semantic_cfg.get("self_exclude_for_real", True))),
+            "min_anchor_count": int(semantic_state.get("min_anchor_count", semantic_cfg.get("min_anchor_count", 4))),
+            "anchor_sem_raw_p50": float(semantic_state.get("anchor_sem_raw_p50", 0.0)),
+            "anchor_sem_raw_p95": float(semantic_state.get("anchor_sem_raw_p95", 0.0)),
+            "anchor_sem_raw_p99": float(semantic_state.get("anchor_sem_raw_p99", 0.0)),
+        },
         "anchor_ood": {
             "enabled": bool(ood_state.get("enabled", False)),
             "reason": str(ood_state.get("reason", "")) if not bool(ood_state.get("enabled", False)) else "",
@@ -804,6 +847,7 @@ def run_staged_clip_filter(
 
     score_cfg = dict(filter_cfg.get("score", {}))
     w_prompt = float(score_cfg.get("w_prompt", 0.30))
+    w_semantic_anchor = float(score_cfg.get("w_semantic_anchor", 0.0))
     w_cons = float(score_cfg.get("w_consistency", 0.35))
     w_multicrop = float(score_cfg.get("w_multicrop", 0.0))
     w_dedup = float(score_cfg.get("w_dedup", 0.20))
@@ -833,6 +877,12 @@ def run_staged_clip_filter(
         runtime=runtime,
         pos_prompt=prompt_text,
         neg_prompts=neg_prompts,
+    )
+    semantic_cfg = dict(filter_cfg.get("semantic_anchor", {}))
+    semantic_scores, semantic_state = compute_anchor_semantic_scores(
+        rows=rows,
+        image_embeddings=embeddings,
+        cfg=semantic_cfg,
     )
     cons_scores = compute_consistency_scores(
         rows=rows,
@@ -896,6 +946,9 @@ def run_staged_clip_filter(
         sample_id = str(row.get("sample_id", "unknown"))
         source = str(row.get("source", ""))
         s_prompt = float(prompt_scores.get(sample_id, 0.0))
+        sem = semantic_scores.get(sample_id, {})
+        s_semantic_anchor_raw = float(sem.get("s_semantic_anchor_raw", 0.0))
+        s_semantic_anchor = float(sem.get("s_semantic_anchor", 0.0))
         pm = prompt_margin_scores.get(sample_id, {})
         s_prompt_margin = float(pm.get("s_prompt_margin", 0.0))
         s_prompt_margin_norm = float(pm.get("s_prompt_margin_norm", 0.0))
@@ -957,6 +1010,7 @@ def run_staged_clip_filter(
         else:
             final_score = (
                 w_prompt * s_prompt
+                + w_semantic_anchor * s_semantic_anchor
                 + w_cons * s_consistency
                 + w_multicrop * s_multicrop
                 + w_dedup * dedup_good
@@ -983,6 +1037,8 @@ def run_staged_clip_filter(
                 "sample_id": sample_id,
                 "source": source,
                 "s_prompt": round(s_prompt, 6),
+                "s_semantic_anchor_raw": round(s_semantic_anchor_raw, 6),
+                "s_semantic_anchor": round(s_semantic_anchor, 6),
                 "s_prompt_margin": round(s_prompt_margin, 6),
                 "s_prompt_margin_norm": round(s_prompt_margin_norm, 6),
                 "s_prompt_pos": round(float(pm.get("s_prompt_pos", 0.0)), 6),
@@ -1017,6 +1073,7 @@ def run_staged_clip_filter(
     report_extra: Dict[str, Any] = {
         "weights": {
             "w_prompt": w_prompt,
+            "w_semantic_anchor": w_semantic_anchor,
             "w_consistency": w_cons,
             "w_multicrop": w_multicrop,
             "w_dedup": w_dedup,
@@ -1042,6 +1099,17 @@ def run_staged_clip_filter(
             "multicrop_buffer": tri_cons_buf,
             "ood_buffer": tri_ood_buf,
             "keep_real_always": tri_keep_real_always,
+        },
+        "semantic_anchor": {
+            "enabled": bool(semantic_state.get("enabled", False)),
+            "reason": str(semantic_state.get("reason", "")) if not bool(semantic_state.get("enabled", False)) else "",
+            "anchor_count": int(semantic_state.get("anchor_count", 0)),
+            "reduce": str(semantic_state.get("reduce", semantic_cfg.get("reduce", "median"))),
+            "self_exclude_for_real": bool(semantic_state.get("self_exclude_for_real", semantic_cfg.get("self_exclude_for_real", True))),
+            "min_anchor_count": int(semantic_state.get("min_anchor_count", semantic_cfg.get("min_anchor_count", 4))),
+            "anchor_sem_raw_p50": float(semantic_state.get("anchor_sem_raw_p50", 0.0)),
+            "anchor_sem_raw_p95": float(semantic_state.get("anchor_sem_raw_p95", 0.0)),
+            "anchor_sem_raw_p99": float(semantic_state.get("anchor_sem_raw_p99", 0.0)),
         },
         "anchor_ood": {
             "enabled": bool(ood_state.get("enabled", False)),

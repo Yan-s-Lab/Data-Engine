@@ -116,6 +116,7 @@ Structure is **reasonable for CLI-first research iteration**:
 - `filter/filter_stages/`
   - `clip_embed_cache.py`: CLIP runtime + embedding cache
   - `clip_prompt_score.py`: prompt alignment score + positive-negative prompt margin score
+  - `clip_semantic_anchor.py`: anchor-calibrated semantic consistency score (`median` over real anchors)
   - `clip_consistency.py`: perturb consistency score + multi-crop consistency score
   - `clip_anchor_ood.py`: anchor-manifold Mahalanobis OOD scoring
   - `clip_dedup.py`: duplicate similarity score
