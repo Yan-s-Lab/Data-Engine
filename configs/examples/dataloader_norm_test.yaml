@@ -3,9 +3,9 @@ run:
   artifacts_root: artifacts/runs
 
 dataloader:
-  real_dir: artifacts/datasets/rawdatasets
-  image_dir: artifacts/datasets/rawdatasets/images
-  label_dir: artifacts/datasets/rawdatasets/labels
+  real_dir: artifacts/datasets/rawdatasets/real_arm_deltoid
+  image_dir: artifacts/datasets/rawdatasets/real_arm_deltoid/images
+  label_dir: artifacts/datasets/rawdatasets/real_arm_deltoid/labels
   label_ext: .txt
   require_labels: true
   patterns:
@@ -20,9 +20,9 @@ dataloader:
 
   naming:
     canonicalize_names: true
-    services_id: yk-001 # proving that data original from same services
-    task_name: arm_deltoid_muscle_seg # task relevant is aligning with our design target which aim "task" as start
-    filename_template: ${services_id}_${task_name}_${seq_id_padded} # normlizing file name template
+    services_id: yk-001
+    task_name: arm_deltoid_muscle_seg
+    filename_template: ${services_id}_${task_name}_${seq_id_padded}
     id_width: 4
     id_start: 1
     target_image_ext: .png
