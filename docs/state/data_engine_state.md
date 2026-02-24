@@ -4,7 +4,7 @@
 > This file records what is **actually implemented** in this repository at scan time.
 > It is not an architecture target; targets belong in `docs/design/*.md`.
 
-## Snapshot (as of 2026-02-12)
+## Snapshot (as of 2026-02-24)
 
 The repository is currently a **CLI-first rewrite scaffold** with a few working adapters.
 
@@ -112,11 +112,12 @@ Structure is **reasonable for CLI-first research iteration**:
   - `pcs_clip` mode performs block-shuffle perturbation and CLIP image similarity scoring
   - `staged_clip` mode runs modular filter stages and produces weighted final scores
   - `compose` mode runs configurable stage switches + policy gates/weighted fusion
+  - supports phase1 semantic routing (`filter.phase1_semantic`) for guided/prompt-only/fallback score selection
   - writes filter scores + stage report
 - `filter/filter_stages/`
-  - `clip_embed_cache.py`: CLIP runtime + embedding cache
-  - `clip_prompt_score.py`: prompt alignment score + positive-negative prompt margin score
-  - `clip_semantic_anchor.py`: anchor-calibrated semantic consistency score (`median` over real anchors)
+  - `clip_embed_cache.py`: CLIP/SigLIP runtime + embedding cache
+  - `clip_prompt_score.py`: prompt alignment score + positive-negative prompt margin score (supports `siglip_sigmoid` mode via `logits_per_image -> sigmoid`)
+  - `clip_semantic_anchor.py`: anchor-calibrated semantic consistency score (`median` over real anchors) + paired real-guided semantic score (`Sim(E(x), E(anchor(x)))`)
   - `clip_consistency.py`: perturb consistency score + multi-crop consistency score
   - `clip_anchor_ood.py`: anchor-manifold Mahalanobis OOD scoring
   - `clip_dedup.py`: duplicate similarity score
@@ -141,6 +142,8 @@ Structure is **reasonable for CLI-first research iteration**:
   - example single-node closed-loop config using ComfyUI API graph workflow
 - `configs/examples/comfyui/flux_dev_api_img2img.json`
   - ComfyUI API graph example for image-to-image anchor generation
+- `configs/examples/min_single_node_closed_loop_phase1_semantic_clip.yaml`
+  - compose mode example for phase1 semantic routing with SigLIP2 scoring
 - `common/manifest_io.py`, `common/gateway_client.py`, `common/archive.py`
   - JSON/JSONL IO, gateway HTTP calls, archive packaging
 - `common/config_io.py`

@@ -7,3 +7,5 @@ minedata/
 third_party/openpose/build/
 third_party/runs/
 runs/
+
+*/**/normalize_x_column.py

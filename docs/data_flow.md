@@ -1,85 +1,52 @@
 
+# Data Flow (Current, Methods-Aligned)
 
-# 🔥 整条 MVP Pipeline（你可以作为 docs/data_flow.md）
+本文档只描述**当前仓库可运行的数据流**，并对齐 `.temp/methods.tex` 的阶段定义。
 
-## Scenario: “Injection Data Engine MVP 1.0”：
+## 1. 论文方法到当前实现的映射
 
-### Step 1. 上传初始数据（冷启动）
+`methods.tex` 的 5 段式方法：
+1. Task + Real Anchors
+2. Synthetic-First Generation
+3. Real-Calibrated Cascaded Filtering
+4. Annotation / Label Refinement
+5. Training-Aware Feedback Loop
 
-```
-manual-uploader → collection-gateway → raw_samples
-```
+当前仓库映射：
+1. `dataloader`：产出 real anchors manifest
+2. `generate`：`local_stub` 或 `comfyui` 生成 synthetic
+3. `filter`：`stub | pcs_clip | staged_clip | compose`（含 phase1 semantic routing）
+4. `label`：Label Studio push/pull CLI 已有，但未并入默认单轮 pipeline
+5. `train -> eval`：当前为 stub 训练评估，产出 `policy_feedback.json`
 
-### Step 2. Mine
+## 2. 当前默认可运行闭环
 
-```
-mine-service:
-    - 去重
-    - 基础质量过滤
-    - 抽样候选集 candidate_samples
-```
+默认单机闭环：
 
-### Step 3. Filter-1（AI + 人工结合）
+`dataloader -> generate -> filter -> train -> eval`
 
-```
-filter-service:
-    - CLIP embeddings
-    - 聚类 → scatter plot (UMAP)
+入口：
 
-人工：
-    在前端选择：accept / reject
-输出 → filtered_samples
-```
+`pipelines/run_yaml_pipeline.py`
 
-### Step 4. 标注（人工的第一层）
+说明：
+- 该闭环是**方法学骨架可运行版**（MVP），并非完整算法实现。
+- `eval` 输出策略建议，但尚未自动回写配置形成全自动多轮优化。
 
-```
-label-sync-service → Label Studio
-人工在 Label Studio 画 mask
-label-sync 拉回 → dataset_version_1
-```
+## 3. 两条已落地执行路径
 
-### Step 5. Synthetic Augment
+1. M1 最小本地回路（验证 artifact 合同）  
+`filter -> train -> eval`  
+入口：`pipelines/filter_train_eval_round.py`
 
-```
-synthetic-service:
-    - ComfyUI workflow (camera/pose guidance)
-    - filter2: CLIP / pose alignment
+2. M2 单机 YAML 闭环（默认推荐）  
+`dataloader -> generate -> filter -> train -> eval`  
+入口：`pipelines/run_yaml_pipeline.py`
 
-输出 → synthetic_samples
+## 4. 文档边界（防止状态漂移）
 
-dataset_version_2 = real + synthetic
-```
+- **事实状态**：`docs/state/data_engine_state.md`
+- **阶段运行手册**：`docs/README_PIPELINE_ZH.md`
+- **目标设计（aspirational）**：`docs/design/*.md`
 
-### Step 6. 训练 YOLO
-
-```
-training-service → best.pt
-```
-
-### Step 7. 评估（AI 的第二次筛选）
-
-```
-evaluation-service:
-    - IoU
-    - 边界误差
-    - need_review = True
-```
-
-### Step 8. HITL 闭环（人工的第二层）
-
-```
-Hard cases → Label Studio → 修正 → 新标签
-dataset_version_3 → 再训练 → 再评估
-```
-
-> **synthetic + real ♻️ training ♻️ HITL 无限循环**
-
----
-
-```
-The MVP of OpenDataEngine for Injection Segmentation supports:
-real data → mine → CLIP filtering → human labeling → synthetic augmentation →
-YOLO training → evaluation → HITL corrections → next dataset version.
-```
-
+历史性的 service 命名流程（如 `mine-service`、`YOLOv11n-seg` 等）不再作为“当前实现事实”来源，应只保留在设计讨论文档中。
