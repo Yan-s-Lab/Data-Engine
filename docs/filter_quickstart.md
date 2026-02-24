@@ -85,3 +85,30 @@ filter:
 3. `s_phase1_semantic` 很低导致大面积 reject
 - 先放宽 gate（例如调低 quantile 或增加 buffer）
 - 再检查 prompt 质量与 `prompt_field` 是否有效
+
+## 7. 自动生成 `input_manifest.jsonl`（不手写）
+
+`filter/run_filter.py` 支持在读取输入前自动构建 manifest：
+
+```yaml
+filter:
+  input_manifest: test/testfilter/input_manifest.jsonl
+  manifest_builder:
+    enabled: true
+    force_rebuild: true
+    filename_driven:
+      enabled: true
+      roots: [test/testfilter/real_raw, test/testfilter/synthetic]
+      patterns: ["**/*.png", "**/*.jpg", "**/*.jpeg"]
+      real:
+        sample_id_template: "{stem}_real"
+      synthetic:
+        stem_pattern: "^(?P<anchor>.+)_[^_]+_[0-9]+$"
+        anchor_template: "{anchor}_real"
+```
+
+行为说明：
+- 先按 `roots + patterns` 扫描图片
+- 文件名匹配 `synthetic.stem_pattern` 的行标记为 `source=synthetic`
+- 未匹配的行标记为 `source=real`
+- synthetic 的 `anchor_real_sample_id` 用 `anchor_template` 从正则分组渲染

@@ -35,17 +35,24 @@ Inputs:
 - normalized manifest rows with `sample_id`, `source`, `image_path`
 - filter policy config:
   - perturbation setup (`grid_rows`, `grid_cols`, `swap_ratio`, `repeats`)
-  - CLIP model/runtime setup (`clip_model_id`, `device`)
+  - CLIP/SigLIP model/runtime setup (`clip_model_id` or `clip.model_id`, `device`)
+  - prompt semantic score mode (`clip.prompt_score_mode`: `cosine` or `siglip_sigmoid`)
   - decision thresholds (`accept_threshold`, `uncertain_low`, `uncertain_high`)
   - tri-gate thresholds (`clip_margin_threshold`, `multicrop_threshold`, `ood_threshold_md2`) or quantile calibration rules
   - compose gates:
     - `metric` + `op` + (`threshold` or `threshold_from`)
     - `threshold_from` currently supports quantile tokens such as `q05_real`, `q99_real`
+  - routed phase1 semantic policy (`filter.phase1_semantic`):
+    - guided synthetic: `semantic_pair` (paired image-image)
+    - prompt-only synthetic: `prompt_score` (SigLIP2 text-image)
+    - fallback: `semantic_anchor`
 
 Outputs:
 - `filter/filter_scores.jsonl` rows containing:
   - `s_semantic_anchor` (anchor-calibrated semantic score, normalized to [0,1])
   - `s_semantic_anchor_raw` (raw median cosine similarity to anchor set)
+  - `s_semantic_pair` (paired anchor similarity score for real-guided synthetic rows)
+  - `s_phase1_semantic` (routed phase1 semantic score)
   - `score_pcs` (mean CLIP cosine similarity between original and perturbed images)
   - `s_prompt_margin` (semantic positive-negative margin)
   - `s_multicrop_consistency` (cross-crop pairwise consistency mean)

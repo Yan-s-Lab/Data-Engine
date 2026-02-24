@@ -108,3 +108,72 @@ def compute_anchor_semantic_scores(
         "anchor_sem_raw_p95": _quantile(anchor_self, 0.95),
         "anchor_sem_raw_p99": _quantile(anchor_self, 0.99),
     }
+
+
+def compute_paired_anchor_semantic_scores(
+    rows: List[Dict[str, Any]],
+    image_embeddings: Dict[str, Any],
+    cfg: Dict[str, Any],
+) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Any]]:
+    """
+    Pair-wise semantic score for real-guided synthetic samples:
+      s_pair(x) = Sim(E(x), E(anchor(x)))
+    where anchor(x) is resolved from row fields, typically `anchor_real_sample_id`.
+    """
+    anchor_sid_fields = [str(x) for x in cfg.get("anchor_sid_fields", ["anchor_real_sample_id"])]
+
+    out: Dict[str, Dict[str, float]] = {}
+    hit = 0
+    miss = 0
+
+    for row in rows:
+        sid = str(row.get("sample_id", ""))
+        emb = image_embeddings.get(sid)
+        if emb is None:
+            out[sid] = {
+                "s_semantic_pair_raw": 0.0,
+                "s_semantic_pair": 0.0,
+                "s_semantic_pair_hit": 0.0,
+            }
+            miss += 1
+            continue
+
+        anchor_sid = ""
+        for field in anchor_sid_fields:
+            val = str(row.get(field, "")).strip()
+            if val:
+                anchor_sid = val
+                break
+        if not anchor_sid:
+            out[sid] = {
+                "s_semantic_pair_raw": 0.0,
+                "s_semantic_pair": 0.0,
+                "s_semantic_pair_hit": 0.0,
+            }
+            miss += 1
+            continue
+
+        aemb = image_embeddings.get(anchor_sid)
+        if aemb is None:
+            out[sid] = {
+                "s_semantic_pair_raw": 0.0,
+                "s_semantic_pair": 0.0,
+                "s_semantic_pair_hit": 0.0,
+            }
+            miss += 1
+            continue
+
+        s_raw = float((emb * aemb).sum().item())
+        out[sid] = {
+            "s_semantic_pair_raw": s_raw,
+            "s_semantic_pair": max(0.0, min(1.0, (s_raw + 1.0) * 0.5)),
+            "s_semantic_pair_hit": 1.0,
+        }
+        hit += 1
+
+    return out, {
+        "enabled": True,
+        "anchor_sid_fields": anchor_sid_fields,
+        "pair_hit_count": hit,
+        "pair_miss_count": miss,
+    }

@@ -17,6 +17,7 @@ from common.config_io import load_config, resolve_run_dir
 from common.manifest_io import read_jsonl, write_json, write_jsonl
 from filter.filter_stages import (
     compute_anchor_semantic_scores,
+    compute_paired_anchor_semantic_scores,
     build_image_embeddings,
     compute_anchor_ood_scores,
     compute_consistency_scores,
@@ -27,6 +28,7 @@ from filter.filter_stages import (
     compute_quality_scores,
     fit_anchor_ood_stats,
 )
+from filter.manifest_builder import build_input_manifest_from_config
 
 
 def stable_score(sample_id: str) -> float:
@@ -366,6 +368,109 @@ def _stage_enabled_map(filter_cfg: Dict[str, Any]) -> Dict[str, bool]:
     return out
 
 
+def _resolve_prompt_score_mode(clip_cfg: Dict[str, Any], model_id: str) -> str:
+    explicit = str(clip_cfg.get("prompt_score_mode", "")).strip().lower()
+    if explicit:
+        return explicit
+    if "siglip" in model_id.strip().lower():
+        return "siglip_sigmoid"
+    return "cosine"
+
+
+def _is_real_guided_synth(row: Dict[str, Any], phase1_cfg: Dict[str, Any]) -> bool:
+    if str(row.get("source", "")) != "synthetic":
+        return False
+    marker_fields = [str(x) for x in phase1_cfg.get(
+        "guided_marker_fields",
+        [
+            "anchor_real_sample_id",
+            "anchor_real_image_path",
+            "effective_anchor_input",
+            "effective_anchor_inputs",
+        ],
+    )]
+    for field in marker_fields:
+        val = row.get(field)
+        if isinstance(val, str) and val.strip():
+            return True
+        if isinstance(val, dict) and val:
+            return True
+    return False
+
+
+def build_phase1_semantic_scores(
+    rows: List[Dict[str, Any]],
+    semantic_scores: Dict[str, Dict[str, float]],
+    paired_scores: Dict[str, Dict[str, float]],
+    prompt_scores: Dict[str, float],
+    phase1_cfg: Dict[str, Any],
+) -> tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    enabled = bool(phase1_cfg.get("enabled", False))
+    if not enabled:
+        out_disabled: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            sid = str(row.get("sample_id", ""))
+            out_disabled[sid] = {
+                "s_phase1_semantic": float(semantic_scores.get(sid, {}).get("s_semantic_anchor", 0.0)),
+                "s_phase1_semantic_source": "semantic_anchor",
+            }
+        return out_disabled, {"enabled": False}
+
+    guided_source = str(phase1_cfg.get("guided_source", "semantic_pair")).strip().lower()
+    prompt_only_source = str(phase1_cfg.get("prompt_only_source", "prompt_score")).strip().lower()
+    fallback_source = str(phase1_cfg.get("fallback_source", "semantic_anchor")).strip().lower()
+
+    out: Dict[str, Dict[str, Any]] = {}
+    guided_count = 0
+    prompt_only_count = 0
+    source_counter: Dict[str, int] = {}
+
+    for row in rows:
+        sid = str(row.get("sample_id", ""))
+        is_guided = _is_real_guided_synth(row=row, phase1_cfg=phase1_cfg)
+        if is_guided:
+            guided_count += 1
+        else:
+            if str(row.get("source", "")) == "synthetic":
+                prompt_only_count += 1
+
+        selected_source = fallback_source
+        value = float(semantic_scores.get(sid, {}).get("s_semantic_anchor", 0.0))
+
+        if is_guided and guided_source == "semantic_pair":
+            pair = paired_scores.get(sid, {})
+            if float(pair.get("s_semantic_pair_hit", 0.0)) > 0.0:
+                selected_source = "semantic_pair"
+                value = float(pair.get("s_semantic_pair", 0.0))
+        elif (not is_guided) and str(row.get("source", "")) == "synthetic" and prompt_only_source == "prompt_score":
+            selected_source = "prompt_score"
+            value = float(prompt_scores.get(sid, 0.0))
+
+        if selected_source == fallback_source:
+            if fallback_source == "prompt_score":
+                value = float(prompt_scores.get(sid, 0.0))
+            elif fallback_source == "semantic_pair":
+                value = float(paired_scores.get(sid, {}).get("s_semantic_pair", 0.0))
+            else:
+                value = float(semantic_scores.get(sid, {}).get("s_semantic_anchor", 0.0))
+
+        source_counter[selected_source] = source_counter.get(selected_source, 0) + 1
+        out[sid] = {
+            "s_phase1_semantic": max(0.0, min(1.0, value)),
+            "s_phase1_semantic_source": selected_source,
+        }
+
+    return out, {
+        "enabled": True,
+        "guided_source": guided_source,
+        "prompt_only_source": prompt_only_source,
+        "fallback_source": fallback_source,
+        "guided_synth_count": guided_count,
+        "prompt_only_synth_count": prompt_only_count,
+        "source_counter": source_counter,
+    }
+
+
 def _as_op(op_raw: str) -> str:
     op = op_raw.strip()
     if op in {">=", "gte"}:
@@ -443,8 +548,10 @@ def run_composed_clip_filter(
     )
     device = str(clip_cfg.get("device", "auto"))
     prompt_text = str(clip_cfg.get("prompt_text", filter_cfg.get("prompt_text", "")))
+    prompt_score_mode = _resolve_prompt_score_mode(clip_cfg=clip_cfg, model_id=model_id)
     neg_prompts = [str(x) for x in clip_cfg.get("negative_prompts", [])]
     cache_path = Path(str(clip_cfg.get("embed_cache_path", filter_dir / "clip_embed_cache.json")))
+    phase1_cfg = dict(filter_cfg.get("phase1_semantic", {}))
 
     stages_enabled = _stage_enabled_map(filter_cfg)
     keep_real_always = bool(filter_cfg.get("keep_real_always", True))
@@ -472,6 +579,9 @@ def run_composed_clip_filter(
 
     sid_list = [str(r.get("sample_id", "")) for r in rows]
     prompt_scores: Dict[str, float] = {sid: 0.0 for sid in sid_list}
+    phase1_scores: Dict[str, Dict[str, Any]] = {
+        sid: {"s_phase1_semantic": 0.0, "s_phase1_semantic_source": "semantic_anchor"} for sid in sid_list
+    }
     semantic_scores: Dict[str, Dict[str, float]] = {
         sid: {
             "s_semantic_anchor_raw": 0.0,
@@ -495,6 +605,14 @@ def run_composed_clip_filter(
             "pcs_similarity_max": 0.0,
             "pcs_similarity_mean": 0.0,
             "pcs_repeats": 0.0,
+        }
+        for sid in sid_list
+    }
+    paired_scores: Dict[str, Dict[str, float]] = {
+        sid: {
+            "s_semantic_pair_raw": 0.0,
+            "s_semantic_pair": 0.0,
+            "s_semantic_pair_hit": 0.0,
         }
         for sid in sid_list
     }
@@ -540,11 +658,24 @@ def run_composed_clip_filter(
         }
 
     if stages_enabled.get("prompt_score", True):
+        prompt_field = str(phase1_cfg.get("prompt_field", "effective_prompt_text"))
         prompt_scores = compute_prompt_scores(
             rows=rows,
             image_embeddings=embeddings,
             runtime=runtime,
             prompt_text=prompt_text,
+            prompt_score_mode=prompt_score_mode,
+            prompt_field=prompt_field,
+        )
+    elif bool(phase1_cfg.get("enabled", False)):
+        prompt_field = str(phase1_cfg.get("prompt_field", "effective_prompt_text"))
+        prompt_scores = compute_prompt_scores(
+            rows=rows,
+            image_embeddings=embeddings,
+            runtime=runtime,
+            prompt_text=prompt_text,
+            prompt_score_mode=prompt_score_mode,
+            prompt_field=prompt_field,
         )
     if stages_enabled.get("prompt_margin", True):
         prompt_margin_scores = compute_prompt_margin_scores(
@@ -553,6 +684,7 @@ def run_composed_clip_filter(
             runtime=runtime,
             pos_prompt=prompt_text,
             neg_prompts=neg_prompts,
+            prompt_score_mode=prompt_score_mode,
         )
     if stages_enabled.get("consistency", True):
         cons_scores = compute_consistency_scores(
@@ -599,6 +731,22 @@ def run_composed_clip_filter(
     if stages_enabled.get("quality", True):
         quality_scores = compute_quality_scores(rows=rows, cfg=dict(filter_cfg.get("quality", {})))
 
+    if bool(phase1_cfg.get("enabled", False)):
+        paired_scores, phase1_pair_state = compute_paired_anchor_semantic_scores(
+            rows=rows,
+            image_embeddings=embeddings,
+            cfg=phase1_cfg,
+        )
+    else:
+        phase1_pair_state = {"enabled": False, "pair_hit_count": 0, "pair_miss_count": 0}
+    phase1_scores, phase1_state = build_phase1_semantic_scores(
+        rows=rows,
+        semantic_scores=semantic_scores,
+        paired_scores=paired_scores,
+        prompt_scores=prompt_scores,
+        phase1_cfg=phase1_cfg,
+    )
+
     policy_cfg = dict(filter_cfg.get("policy", {}))
     strategy = str(policy_cfg.get("decision", filter_cfg.get("strategy", "weighted"))).strip().lower()
     calibration_sources = [str(x) for x in policy_cfg.get("calibration_sources", ["real"])]
@@ -614,6 +762,10 @@ def run_composed_clip_filter(
             return float(semantic_scores.get(sid, {}).get("s_semantic_anchor_raw", 0.0))
         if metric_name == "s_semantic_anchor":
             return float(semantic_scores.get(sid, {}).get("s_semantic_anchor", 0.0))
+        if metric_name == "s_semantic_pair":
+            return float(paired_scores.get(sid, {}).get("s_semantic_pair", 0.0))
+        if metric_name == "s_phase1_semantic":
+            return float(phase1_scores.get(sid, {}).get("s_phase1_semantic", 0.0))
         if metric_name == "s_prompt_margin":
             return float(prompt_margin_scores.get(sid, {}).get("s_prompt_margin", 0.0))
         if metric_name == "s_prompt_margin_norm":
@@ -674,6 +826,9 @@ def run_composed_clip_filter(
         s_prompt = metric_value("s_prompt", row)
         s_semantic_anchor_raw = metric_value("s_semantic_anchor_raw", row)
         s_semantic_anchor = metric_value("s_semantic_anchor", row)
+        s_semantic_pair = metric_value("s_semantic_pair", row)
+        s_phase1_semantic = metric_value("s_phase1_semantic", row)
+        s_phase1_semantic_source = str(phase1_scores.get(sample_id, {}).get("s_phase1_semantic_source", ""))
         s_prompt_margin = metric_value("s_prompt_margin", row)
         s_prompt_margin_norm = metric_value("s_prompt_margin_norm", row)
         s_consistency = metric_value("s_consistency", row)
@@ -751,6 +906,9 @@ def run_composed_clip_filter(
                 "s_prompt": round(s_prompt, 6),
                 "s_semantic_anchor_raw": round(s_semantic_anchor_raw, 6),
                 "s_semantic_anchor": round(s_semantic_anchor, 6),
+                "s_semantic_pair": round(s_semantic_pair, 6),
+                "s_phase1_semantic": round(s_phase1_semantic, 6),
+                "s_phase1_semantic_source": s_phase1_semantic_source,
                 "s_prompt_margin": round(s_prompt_margin, 6),
                 "s_prompt_margin_norm": round(s_prompt_margin_norm, 6),
                 "s_prompt_pos": round(float(pm.get("s_prompt_pos", 0.0)), 6),
@@ -788,6 +946,7 @@ def run_composed_clip_filter(
         "keep_real_always": keep_real_always,
         "strategy": strategy,
         "prompt_text_present": bool(prompt_text.strip()),
+        "prompt_score_mode": prompt_score_mode,
         "negative_prompt_count": len(neg_prompts),
         "stages_enabled": stages_enabled,
         "policy": {
@@ -806,6 +965,11 @@ def run_composed_clip_filter(
             "anchor_sem_raw_p50": float(semantic_state.get("anchor_sem_raw_p50", 0.0)),
             "anchor_sem_raw_p95": float(semantic_state.get("anchor_sem_raw_p95", 0.0)),
             "anchor_sem_raw_p99": float(semantic_state.get("anchor_sem_raw_p99", 0.0)),
+        },
+        "phase1_semantic": {
+            **phase1_state,
+            "paired": phase1_pair_state,
+            "prompt_field": str(phase1_cfg.get("prompt_field", "effective_prompt_text")),
         },
         "anchor_ood": {
             "enabled": bool(ood_state.get("enabled", False)),
@@ -841,9 +1005,11 @@ def run_staged_clip_filter(
     )
     device = str(clip_cfg.get("device", "auto"))
     prompt_text = str(clip_cfg.get("prompt_text", filter_cfg.get("prompt_text", "")))
+    prompt_score_mode = _resolve_prompt_score_mode(clip_cfg=clip_cfg, model_id=model_id)
     neg_prompts = [str(x) for x in clip_cfg.get("negative_prompts", [])]
     cache_path = Path(str(clip_cfg.get("embed_cache_path", filter_dir / "clip_embed_cache.json")))
     strategy = str(filter_cfg.get("strategy", "weighted")).strip().lower()
+    phase1_cfg = dict(filter_cfg.get("phase1_semantic", {}))
 
     score_cfg = dict(filter_cfg.get("score", {}))
     w_prompt = float(score_cfg.get("w_prompt", 0.30))
@@ -870,6 +1036,8 @@ def run_staged_clip_filter(
         image_embeddings=embeddings,
         runtime=runtime,
         prompt_text=prompt_text,
+        prompt_score_mode=prompt_score_mode,
+        prompt_field=str(phase1_cfg.get("prompt_field", "effective_prompt_text")),
     )
     prompt_margin_scores = compute_prompt_margin_scores(
         rows=rows,
@@ -877,12 +1045,36 @@ def run_staged_clip_filter(
         runtime=runtime,
         pos_prompt=prompt_text,
         neg_prompts=neg_prompts,
+        prompt_score_mode=prompt_score_mode,
     )
     semantic_cfg = dict(filter_cfg.get("semantic_anchor", {}))
     semantic_scores, semantic_state = compute_anchor_semantic_scores(
         rows=rows,
         image_embeddings=embeddings,
         cfg=semantic_cfg,
+    )
+    if bool(phase1_cfg.get("enabled", False)):
+        paired_scores, phase1_pair_state = compute_paired_anchor_semantic_scores(
+            rows=rows,
+            image_embeddings=embeddings,
+            cfg=phase1_cfg,
+        )
+    else:
+        paired_scores = {
+            str(r.get("sample_id", "")): {
+                "s_semantic_pair_raw": 0.0,
+                "s_semantic_pair": 0.0,
+                "s_semantic_pair_hit": 0.0,
+            }
+            for r in rows
+        }
+        phase1_pair_state = {"enabled": False, "pair_hit_count": 0, "pair_miss_count": 0}
+    phase1_scores, phase1_state = build_phase1_semantic_scores(
+        rows=rows,
+        semantic_scores=semantic_scores,
+        paired_scores=paired_scores,
+        prompt_scores=prompt_scores,
+        phase1_cfg=phase1_cfg,
     )
     cons_scores = compute_consistency_scores(
         rows=rows,
@@ -949,6 +1141,9 @@ def run_staged_clip_filter(
         sem = semantic_scores.get(sample_id, {})
         s_semantic_anchor_raw = float(sem.get("s_semantic_anchor_raw", 0.0))
         s_semantic_anchor = float(sem.get("s_semantic_anchor", 0.0))
+        s_semantic_pair = float(paired_scores.get(sample_id, {}).get("s_semantic_pair", 0.0))
+        s_phase1_semantic = float(phase1_scores.get(sample_id, {}).get("s_phase1_semantic", 0.0))
+        s_phase1_semantic_source = str(phase1_scores.get(sample_id, {}).get("s_phase1_semantic_source", ""))
         pm = prompt_margin_scores.get(sample_id, {})
         s_prompt_margin = float(pm.get("s_prompt_margin", 0.0))
         s_prompt_margin_norm = float(pm.get("s_prompt_margin_norm", 0.0))
@@ -1039,6 +1234,9 @@ def run_staged_clip_filter(
                 "s_prompt": round(s_prompt, 6),
                 "s_semantic_anchor_raw": round(s_semantic_anchor_raw, 6),
                 "s_semantic_anchor": round(s_semantic_anchor, 6),
+                "s_semantic_pair": round(s_semantic_pair, 6),
+                "s_phase1_semantic": round(s_phase1_semantic, 6),
+                "s_phase1_semantic_source": s_phase1_semantic_source,
                 "s_prompt_margin": round(s_prompt_margin, 6),
                 "s_prompt_margin_norm": round(s_prompt_margin_norm, 6),
                 "s_prompt_pos": round(float(pm.get("s_prompt_pos", 0.0)), 6),
@@ -1086,6 +1284,7 @@ def run_staged_clip_filter(
         "keep_real_always": keep_real_always,
         "strategy": strategy,
         "prompt_text_present": bool(prompt_text.strip()),
+        "prompt_score_mode": prompt_score_mode,
         "negative_prompt_count": len(neg_prompts),
         "tri_gate": {
             "calibration_sources": calib_sources,
@@ -1110,6 +1309,11 @@ def run_staged_clip_filter(
             "anchor_sem_raw_p50": float(semantic_state.get("anchor_sem_raw_p50", 0.0)),
             "anchor_sem_raw_p95": float(semantic_state.get("anchor_sem_raw_p95", 0.0)),
             "anchor_sem_raw_p99": float(semantic_state.get("anchor_sem_raw_p99", 0.0)),
+        },
+        "phase1_semantic": {
+            **phase1_state,
+            "paired": phase1_pair_state,
+            "prompt_field": str(phase1_cfg.get("prompt_field", "effective_prompt_text")),
         },
         "anchor_ood": {
             "enabled": bool(ood_state.get("enabled", False)),
@@ -1138,8 +1342,15 @@ def main() -> None:
     filter_cfg = config.get("filter", {})
 
     input_manifest = filter_cfg.get("input_manifest")
-    if input_manifest:
-        rows = read_jsonl(Path(str(input_manifest)))
+    input_manifest_path = Path(str(input_manifest)) if input_manifest else None
+    builder_cfg = dict(filter_cfg.get("manifest_builder", {}))
+    builder_enabled = bool(builder_cfg.get("enabled", False))
+    builder_force = bool(builder_cfg.get("force_rebuild", False))
+
+    if builder_enabled and (builder_force or input_manifest_path is None or not input_manifest_path.exists()):
+        rows = build_input_manifest_from_config(filter_cfg=filter_cfg, input_manifest_path=input_manifest_path)
+    elif input_manifest_path is not None:
+        rows = read_jsonl(input_manifest_path)
     else:
         rows = build_stub_manifest(
             total_count=int(filter_cfg.get("stub_total_count", 24)),
