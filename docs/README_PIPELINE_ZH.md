@@ -69,3 +69,22 @@ python filter/run_filter.py \
 
 3. Filter 没有 real anchor
 - 检查 input manifest 中是否有 `source=real` 样本。
+
+## 6. OpenPose（本地外部仓库，不纳入本仓库版本管理）
+
+`third_party/openpose/` 在本仓库中故意不跟踪。需要 OpenPose 时，请在本机自行 clone 与构建：
+
+```bash
+git clone https://github.com/CMU-Perceptual-Computing-Lab/openpose.git third_party/openpose
+cd third_party/openpose
+mkdir -p build && cd build
+cmake ..
+make -j"$(nproc)"
+cd ../..
+```
+
+构建完成后可使用仓库脚本（已适配 `third_party/openpose` 默认路径）：
+
+```bash
+bash third_party/run_openpose_to_control.sh --image /abs/path/to/image.png
+```

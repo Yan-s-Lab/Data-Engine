@@ -5,6 +5,7 @@ __pycache__/
 artifacts/
 minedata/
 third_party/openpose/build/
+third_party/openpose/
 third_party/runs/
 runs/
 

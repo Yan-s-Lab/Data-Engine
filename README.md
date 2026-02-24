@@ -24,3 +24,23 @@ python synth/run_generate.py \
 python filter/run_filter.py \
   --config artifacts/testfilter/configs/filter_compose.yaml
 ```
+
+## OpenPose (local external clone)
+
+`third_party/openpose/` is intentionally not tracked by this repository.
+If you need OpenPose tools, clone and build it locally:
+
+```bash
+git clone https://github.com/CMU-Perceptual-Computing-Lab/openpose.git third_party/openpose
+cd third_party/openpose
+mkdir -p build && cd build
+cmake ..
+make -j"$(nproc)"
+cd ../..
+```
+
+Then run helper script:
+
+```bash
+bash third_party/run_openpose_to_control.sh --image /abs/path/to/image.png
+```
