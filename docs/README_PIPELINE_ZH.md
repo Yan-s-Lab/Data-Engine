@@ -8,6 +8,9 @@
 入口脚本:
 `pipelines/run_yaml_pipeline.py`
 
+Filter 单模块入口（只跑过滤阶段）:
+`filter/run_filter.py`
+
 ---
 
 ## 1. 先决条件
@@ -170,6 +173,11 @@ ComfyUI 专属:
 
 ## 7. 推荐日常命令（复制即用）
 
+入口说明（先看这条）:
+- `run_yaml_pipeline.py`：执行多阶段流水线（可包含 dataloader/generate/filter/train/eval）
+- `run_filter.py`：只执行 filter 模块
+- Filter 单模块详细手册：`docs/filter_quickstart.md`
+
 本地快速回归:
 ```bash
 python pipelines/run_yaml_pipeline.py \
@@ -198,6 +206,12 @@ python pipelines/run_yaml_pipeline.py \
 ```bash
 python pipelines/run_yaml_pipeline.py \
   --config configs/examples/min_single_node_closed_loop_compose_clip.yaml
+```
+
+只跑 Filter（使用 testfilter compose 配置）:
+```bash
+python filter/run_filter.py \
+  --config artifacts/testfilter/configs/filter_compose.yaml
 ```
 
 `staged_clip` 产出的 `filter/filter_scores.jsonl` 行格式示例:
