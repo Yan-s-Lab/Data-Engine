@@ -1,0 +1,196 @@
+run:
+  # 本次实验的 run 名称。输出目录 = artifacts_root/run_id
+  run_id: testfilter_compose
+  artifacts_root: test/testfilter/runs
+
+filter:
+  # compose = 可组合过滤流程（按 stages 计算指标，再按 policy 做决策）
+  mode: compose
+
+  # 输入 jsonl；每行至少要有 sample_id/source/image_path。
+  # source 通常是 real datasets 或者指 参与后续引导生成的 raw data。
+  # phase1_semantic 若要启用 guided 路由，需要每行带 anchor_real_sample_id 等字段（见下方配置）。
+  input_manifest: test/testfilter/input_manifest.jsonl
+  # 自动生成 input_manifest（替代手写 jsonl）。
+  # 生效条件：enabled=true 且 input_manifest 不存在，或 force_rebuild=true。
+  manifest_builder:
+    enabled: true
+    force_rebuild: true
+    # 默认会写回 input_manifest；也可单独指定 output_path。
+    write_output: true
+    # 文件名驱动：不依赖目录语义，只把目录当扫描范围。
+    # 规则：
+    # 1) 匹配 synthetic.stem_pattern 的文件视作 synthetic
+    # 2) 其他文件视作 real
+    filename_driven:
+      enabled: true
+      roots:
+        - test/testfilter/real_raw
+        - test/testfilter/synthetic
+      patterns: ["**/*.png", "**/*.jpg", "**/*.jpeg"]
+      # 可选：排除运行产物目录，避免误扫。
+      exclude_path_contains:
+        - "/runs/"
+      real:
+        source: real
+        sample_id_template: "{stem}_real"
+      synthetic:
+        source: synthetic
+        sample_id_template: "{stem}"
+        # 文件名固定由生成器产出，这里按控制分支 token 精确匹配（避免把 real 误判为 synthetic）。
+        # 例：yk-..._0001_canny_0001 -> anchor=yk-..._0001
+        stem_pattern: "^(?P<anchor>.+)_canny_[0-9]+$"
+        anchor_template: "{anchor}_real"
+        anchor_field: anchor_real_sample_id
+        strict_anchor: true
+
+  # true 时，source=real 的样本最终强制 accept（不会被过滤掉）。
+  keep_real_always: true
+
+  # 非 tri_gate 决策时会用到的三段阈值（accept / uncertain / reject）。
+  # 当前 policy=tri_gate_plus_weighted，主决策看 gates；这三个阈值主要用于兜底或改策略时生效。
+  accept_threshold: 0.72
+  uncertain_low: 0.62
+  uncertain_high: 0.72
+
+  clip:
+    # embedding 与图文打分的底座模型。
+    model_id: google/siglip2-base-patch16-224
+    # auto: 有 CUDA 就走 GPU，否则 CPU。
+    device: auto
+    # SigLIP 推荐 siglip_sigmoid；若是 CLIP 常用 cosine。
+    prompt_score_mode: siglip_sigmoid
+
+    # 正向任务语义（用于 prompt_score / prompt_margin）。
+    # 若样本行里存在 phase1_semantic.prompt_field 指定字段，会优先使用行内 prompt。
+    prompt_text: "a clear photo of a human arm deltoid muscle"
+
+    # 负向语义（用于 margin：正向得分 - 负向最大得分）。
+    negative_prompts:
+      - "a collage or fragmented montage"
+      - "a low quality synthetic artifact image"
+      - "a drawing, painting, or cartoon"
+
+  # 控制“计算哪些子指标”。
+  # 注意：某 stage 关掉后，即使 policy 引用了该指标，值通常会退化为默认值（常见是 0）。
+  stages:
+    - id: semantic_anchor # 图像 vs real anchor 集合相似度（聚合后映射到 0~1）
+      enabled: true
+    - id: prompt_score # 图像 vs prompt 语义匹配分
+      enabled: true
+    - id: prompt_margin # 正负 prompt 间隔（越大越好）
+      enabled: true
+    - id: consistency # PCS 扰动一致性（当前关闭）
+      enabled: false
+    - id: multicrop # 多随机裁剪一致性（当前关闭）
+      enabled: false
+    - id: anchor_ood # 相对 real 分布的 OOD（马氏距离）
+      enabled: true
+    - id: dedup # 去重相似度（当前关闭）
+      enabled: false
+    - id: quality # 清晰度/曝光质量分
+      enabled: true
+
+  # consistency stage 的参数（当前 stage 关闭，参数暂不生效）。
+  pcs:
+    repeats: 2
+    grid_rows: 4
+    grid_cols: 4
+    swap_ratio: 0.4
+    min_swaps: 2
+    max_swaps: 8
+    seed_base: 20260214
+
+  # multicrop stage 的参数（当前 stage 关闭，参数暂不生效）。
+  multicrop:
+    n_random: 4
+    crop_frac: 0.45
+    seed_base: 20260214
+
+  # OOD: 用 real anchor 拟合分布，再计算每张图到该分布的 md2。
+  anchor_ood:
+    # true: anchor 来自输入里 source=real 的样本。
+    anchor_from_source_real: true
+    # 若未显式写 threshold，则用 anchor md2 的分位数作为阈值。
+    threshold_quantile: 0.99
+    # 最多用于拟合的 anchor 数量。
+    max_anchor_samples: 2000
+    # 数值稳定参数。
+    eps: 1.0e-6
+    diag_var_floor: 1.0e-3
+
+  # 语义锚点：s_sem(x)=reduce_{r in real}(sim(x,r))。
+  semantic_anchor:
+    anchor_from_source_real: true
+    # 可选 mean/p25/p75/median；median 更稳健。
+    reduce: median
+    # 对 real 样本本身计算时，是否排除“和自己比较”。
+    self_exclude_for_real: true
+    # 小于该数量则该阶段会被标记为 insufficient_anchor_embeddings。
+    min_anchor_count: 2
+    max_anchor_samples: 2000
+
+  # Phase1 路由：决定最终 s_phase1_semantic 来自哪个源。
+  phase1_semantic:
+    enabled: true
+    # 对“有 real 引导标记”的 synthetic，优先用 paired semantic（x 与其 anchor 的相似度）。
+    guided_source: semantic_pair
+    # 对“非 guided 的 synthetic”，用 prompt_score。
+    prompt_only_source: prompt_score
+    # 上述条件都不满足时的兜底来源。
+    fallback_source: semantic_anchor
+
+    # 行内 prompt 字段名；存在时覆盖 clip.prompt_text。
+    prompt_field: effective_prompt_text
+
+    # 判断 synthetic 是否 guided 用到的字段（任一字段有值即可视为 guided）。
+    guided_marker_fields:
+      - anchor_real_sample_id
+      - anchor_real_image_path
+      - effective_anchor_input
+      - effective_anchor_inputs
+
+    # paired semantic 查 anchor sid 的字段优先级。
+    anchor_sid_fields:
+      - anchor_real_sample_id
+
+  # 简单质量分：blur_norm 由 blur_score / blur_good_threshold 归一化得到。
+  quality:
+    blur_good_threshold: 80.0
+
+  policy:
+    # tri_gate_plus_weighted: 先根据 gates 判 accept/uncertain/reject，
+    # 同时计算 weighted final_score 供排序/分析。
+    decision: tri_gate_plus_weighted
+
+    # gate 阈值校准时只用哪些 source。这里是只用 real。
+    calibration_sources:
+      - real
+
+    # gates 支持 threshold（固定值）或 threshold_from（如 q05_real）。
+    gates:
+      # semantic gate：要求 s_phase1_semantic 不低于 real 的 5% 分位（再留 buffer）。
+      - metric: s_phase1_semantic
+        op: ">="
+        threshold_from: q05_real
+        buffer: 0.02
+
+      # 当前 multicrop stage 关闭，因此这个 gate 也注释掉。
+      # - metric: s_multicrop_consistency
+      #   op: ">="
+      #   threshold_from: q05_real
+      #   buffer: 0.02
+
+      # OOD gate：要求 md2 不高于 real 的 99% 分位（允许 buffer）。
+      # 注意 metric 必须是 ood_md2（不要写成 ood_md2.）。
+      - metric: ood_md2
+        op: "<="
+        threshold_from: q99_real
+        buffer: 1.0
+
+    weighted:
+      final_score:
+        # 当前 final_score 只融合 phase1 语义与 OOD。
+        s_phase1_semantic: 0.7
+        # s_multicrop_consistency: 0.35
+        ood_score: 0.3
