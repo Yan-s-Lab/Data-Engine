@@ -156,6 +156,19 @@ def _gen_multicrop_boxes(
     return boxes
 
 
+def _extract_feature_tensor(feat: Any) -> Any:
+    if hasattr(feat, "shape"):
+        return feat
+    for key in ("image_embeds", "text_embeds", "pooler_output"):
+        val = getattr(feat, key, None)
+        if val is not None and hasattr(val, "shape"):
+            return val
+    raise RuntimeError(
+        "unable to extract feature tensor from model output in multicrop stage; "
+        "expected tensor-like output or one of image_embeds/text_embeds/pooler_output."
+    )
+
+
 def compute_multicrop_consistency_scores(
     rows: List[Dict[str, Any]],
     runtime: ClipRuntime,
@@ -197,7 +210,7 @@ def compute_multicrop_consistency_scores(
             inputs = runtime.processor(images=views, return_tensors="pt")
         inputs = {k: v.to(runtime.device) for k, v in inputs.items()}
         with runtime.torch_mod.no_grad():
-            feats = runtime.model.get_image_features(**inputs)
+            feats = _extract_feature_tensor(runtime.model.get_image_features(**inputs))
             feats = feats / feats.norm(dim=-1, keepdim=True).clamp(min=1e-12)
 
             sim = feats @ feats.T
