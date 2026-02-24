@@ -136,14 +136,12 @@ Structure is **reasonable for CLI-first research iteration**:
   - orchestrates single-node closed loop by config:
     - `dataloader -> generate -> filter -> train -> eval`
   - verifies each stage expected artifact exists
-- `configs/examples/min_single_node_closed_loop_comfyui.yaml`
-  - example config for real ComfyUI-backed generate stage
-- `configs/examples/min_single_node_closed_loop_comfyui_api.yaml`
-  - example single-node closed-loop config using ComfyUI API graph workflow
+- `configs/examples/comfyui_generate_from_norm_yk001_prompt_canny.yaml`
+  - verified ComfyUI-backed generate config (uses normalized real manifest)
 - `configs/examples/comfyui/flux_dev_api_img2img.json`
   - ComfyUI API graph example for image-to-image anchor generation
-- `configs/examples/min_single_node_closed_loop_phase1_semantic_clip.yaml`
-  - compose mode example for phase1 semantic routing with SigLIP2 scoring
+- `configs/examples/dataloader_norm_test.yaml`
+  - verified DataLoader normalization config
 - `common/manifest_io.py`, `common/gateway_client.py`, `common/archive.py`
   - JSON/JSONL IO, gateway HTTP calls, archive packaging
 - `common/config_io.py`

@@ -45,7 +45,7 @@ Use environment `open_data_engine`:
 
 ```bash
 conda run -n open_data_engine python pipelines/filter_train_eval_round.py \
-  --config configs/examples/min_closed_loop_stub.yaml
+  --config <archived-or-custom-config.yaml>
 ```
 
 ## Artifact Contract
