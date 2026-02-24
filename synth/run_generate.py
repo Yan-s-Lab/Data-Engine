@@ -315,6 +315,27 @@ def _simple_context(src: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in src.items() if isinstance(v, (str, int, float, bool))}
 
 
+def _inject_anchor_name_context(context: Dict[str, Any], anchor_row: Dict[str, Any]) -> None:
+    raw_image_path = str(anchor_row.get("original_image_path", "")).strip()
+    norm_image_path = str(anchor_row.get("image_path", "")).strip()
+    preferred_image_path = raw_image_path or norm_image_path
+
+    if preferred_image_path:
+        preferred_path = Path(preferred_image_path)
+        context["anchor_image_name"] = preferred_path.name
+        context["anchor_image_stem"] = preferred_path.stem
+
+    if raw_image_path:
+        raw_path = Path(raw_image_path)
+        context["anchor_image_name_raw"] = raw_path.name
+        context["anchor_image_stem_raw"] = raw_path.stem
+
+    if norm_image_path:
+        norm_path = Path(norm_image_path)
+        context["anchor_image_name_norm"] = norm_path.name
+        context["anchor_image_stem_norm"] = norm_path.stem
+
+
 def set_workflow_filename_prefix(
     workflow: Dict[str, Any],
     filename_prefix_cfg: Dict[str, Any],
@@ -331,6 +352,7 @@ def set_workflow_filename_prefix(
     dataloader_config_path = str(filename_prefix_cfg.get("dataloader_config", "")).strip()
 
     context: Dict[str, Any] = {"sample_index": sample_idx, "seed": seed, **_simple_context(anchor_row)}
+    _inject_anchor_name_context(context, anchor_row)
     if dataloader_config_path:
         dataloader_cfg = load_config(Path(dataloader_config_path))
         naming_cfg = (

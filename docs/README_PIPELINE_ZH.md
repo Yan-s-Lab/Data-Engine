@@ -14,17 +14,17 @@ cd /home/yan/StudioSpace/DataEngine
 
 ## 2. DataLoader（data norm）
 
-配置文件：`configs/examples/dataloader_norm_test.yaml`
+配置文件：`configs/examples/dataloader_norm_test_generation_yk001.yaml`
 
 运行：
 ```bash
 python ingest/run_dataloader.py \
-  --config configs/examples/dataloader_norm_test.yaml
+  --config configs/examples/dataloader_norm_test_generation_yk001.yaml
 ```
 
 关键产物：
-- `artifacts/runs/dataloader_norm_test/dataloader/real_manifest.jsonl`
-- `artifacts/runs/dataloader_norm_test/dataloader/report.json`
+- `artifacts/runs/dataloader_norm_test_generation_yk001/dataloader/real_manifest.jsonl`
+- `artifacts/runs/dataloader_norm_test_generation_yk001/dataloader/report.json`
 
 ## 3. Generation（ComfyUI）
 
@@ -35,6 +35,10 @@ python ingest/run_dataloader.py \
 python synth/run_generate.py \
   --config configs/examples/comfyui_generate_from_norm_yk001_prompt_canny.yaml
 ```
+
+说明：
+- 当前示例将 `generate.comfyui.filename_prefix.template` 设置为 `{anchor_image_stem}_canny`，
+  即以引导图（raw 优先，缺失则回退到 manifest 中 image_path）的文件名 stem 作为输出前缀。
 
 关键产物：
 - `artifacts/runs/yk001_prompt_canny_demo/generate/synth_manifest.jsonl`

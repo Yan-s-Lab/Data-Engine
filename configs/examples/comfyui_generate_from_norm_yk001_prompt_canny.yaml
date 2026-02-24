@@ -4,7 +4,7 @@ run:
 
 generate:
   backend: comfyui
-  real_manifest: artifacts/runs/dataloader_norm_test/dataloader/real_manifest.jsonl
+  real_manifest: artifacts/runs/dataloader_norm_test_generation_yk001/dataloader/real_manifest.jsonl
   synth_per_real: 1
   max_synth_samples: 20
   seed_base: 20260212
@@ -28,8 +28,8 @@ generate:
     filename_prefix:
       node_id: "9"
       input_key: filename_prefix
-      dataloader_config: configs/examples/dataloader_norm_test.yaml
-      template: "{services_id}_{task_name}_canny"
+      dataloader_config: configs/examples/dataloader_norm_test_generation_yk001.yaml
+      template: "{anchor_image_stem}_canny"
     anchor_images:
       - name: canny_control
         node_id: "17"
