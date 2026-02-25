@@ -10,12 +10,12 @@ filter:
   # 输入 jsonl；每行至少要有 sample_id/source/image_path。
   # source 通常是 real datasets 或者指 参与后续引导生成的 raw data。
   # phase1_semantic 若要启用 guided 路由，需要每行带 anchor_real_sample_id 等字段（见下方配置）。
-  input_manifest: test/test-filters/input_manifest.jsonl
+  input_manifest: test/test-filters/generate/mixed_manifest.jsonl
   # 自动生成 input_manifest（替代手写 jsonl）。
   # 生效条件：enabled=true 且 input_manifest 不存在，或 force_rebuild=true。
   manifest_builder:
     enabled: true
-    force_rebuild: true
+    force_rebuild: false
     # 默认会写回 input_manifest；也可单独指定 output_path。
     write_output: true
     # 文件名驱动：不依赖目录语义，只把目录当扫描范围。
