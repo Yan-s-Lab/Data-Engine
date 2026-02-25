@@ -1,7 +1,7 @@
 run:
   # 本次实验的 run 名称。输出目录 = artifacts_root/run_id
   run_id: testfilter_compose
-  artifacts_root: test/testfilter/runs
+  artifacts_root: test/test-filters/runs
 
 filter:
   # compose = 可组合过滤流程（按 stages 计算指标，再按 policy 做决策）
@@ -10,7 +10,7 @@ filter:
   # 输入 jsonl；每行至少要有 sample_id/source/image_path。
   # source 通常是 real datasets 或者指 参与后续引导生成的 raw data。
   # phase1_semantic 若要启用 guided 路由，需要每行带 anchor_real_sample_id 等字段（见下方配置）。
-  input_manifest: test/testfilter/input_manifest.jsonl
+  input_manifest: test/test-filters/input_manifest.jsonl
   # 自动生成 input_manifest（替代手写 jsonl）。
   # 生效条件：enabled=true 且 input_manifest 不存在，或 force_rebuild=true。
   manifest_builder:
@@ -25,8 +25,8 @@ filter:
     filename_driven:
       enabled: true
       roots:
-        - test/testfilter/real_raw
-        - test/testfilter/synthetic
+        - test/test-filters/real_raw
+        - test/test-filters/synthetic
       patterns: ["**/*.png", "**/*.jpg", "**/*.jpeg"]
       # 可选：排除运行产物目录，避免误扫。
       exclude_path_contains:

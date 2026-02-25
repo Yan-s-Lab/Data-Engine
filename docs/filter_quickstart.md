@@ -92,13 +92,13 @@ filter:
 
 ```yaml
 filter:
-  input_manifest: test/testfilter/input_manifest.jsonl
+  input_manifest: test/test-filters/input_manifest.jsonl
   manifest_builder:
     enabled: true
     force_rebuild: true
     filename_driven:
       enabled: true
-      roots: [test/testfilter/real_raw, test/testfilter/synthetic]
+      roots: [test/test-filters/real_raw, test/test-filters/synthetic]
       patterns: ["**/*.png", "**/*.jpg", "**/*.jpeg"]
       real:
         sample_id_template: "{stem}_real"
