@@ -13,25 +13,25 @@ models:
       - flux1-dev-fp8.safetensors # 量化版本 17GB
       - flux1-dev.safetensors # 22GB
       - split_files/diffusion_models/flux1-canny-dev.safetensors # 23.8GB
-      - split_files/diffusion_models/flux1-fill-dev.safetensors
+      # - split_files/diffusion_models/flux1-fill-dev.safetensors
   
   # FDI fine-tune
-  - name: flux1-dev
-    type: diffusion
-    dest: diffusion_models
-    source: huggingface
-    repo: Comfy-Org/FLUX.1-Krea-dev_ComfyUI
-    files:
-      - split_files/diffusion_models/flux1-krea-dev_fp8_scaled.safetensors
+  # - name: flux1-dev
+  #   type: diffusion
+  #   dest: diffusion_models
+  #   source: huggingface
+  #   repo: Comfy-Org/FLUX.1-Krea-dev_ComfyUI
+  #   files:
+      # - split_files/diffusion_models/flux1-krea-dev_fp8_scaled.safetensors
 
   # FDI fine-tune
-  - name: flux1-dev
-    type: diffusion
-    dest: diffusion_models
-    source: huggingface
-    repo: Comfy-Org/OneReward_repackaged
-    files:
-      - split_files/diffusion_models/flux.1-fill-dev-OneReward-transformer_fp8.safetensors
+  # - name: flux1-dev
+  #   type: diffusion
+  #   dest: diffusion_models
+  #   source: huggingface
+  #   repo: Comfy-Org/OneReward_repackaged
+  #   files:
+  #     - split_files/diffusion_models/flux.1-fill-dev-OneReward-transformer_fp8.safetensors
 
   - name: flux1-text-encoders
     type: text_encoder
@@ -61,90 +61,90 @@ models:
   # ================================
   # Qwen-image 系列
   # ================================
-  - name: qwen-controlnet
-    type: controlnet_patch
-    dest: model_patches
-    source: huggingface
-    repo: Comfy-Org/Qwen-Image-DiffSynth-ControlNets
-    files:
-      - split_files/model_patches/qwen_image_canny_diffsynth_controlnet.safetensors
+  # - name: qwen-controlnet
+  #   type: controlnet_patch
+  #   dest: model_patches
+  #   source: huggingface
+  #   repo: Comfy-Org/Qwen-Image-DiffSynth-ControlNets
+  #   files:
+  #     - split_files/model_patches/qwen_image_canny_diffsynth_controlnet.safetensors
 
-  - name: qwen-image-edit
-    type: diffusion
-    dest: diffusion_models
-    source: huggingface
-    repo: Comfy-Org/Qwen-Image-Edit_ComfyUI
-    files:
-      - split_files/diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors
+  # - name: qwen-image-edit
+  #   type: diffusion
+  #   dest: diffusion_models
+  #   source: huggingface
+  #   repo: Comfy-Org/Qwen-Image-Edit_ComfyUI
+  #   files:
+  #     - split_files/diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors
 
-  - name: qwen-vae
-    type: vae
-    dest: vae
-    source: huggingface
-    repo: Comfy-Org/Qwen-Image_ComfyUI
-    files:
-      - split_files/vae/qwen_image_vae.safetensors
+  # - name: qwen-vae
+  #   type: vae
+  #   dest: vae
+  #   source: huggingface
+  #   repo: Comfy-Org/Qwen-Image_ComfyUI
+  #   files:
+  #     - split_files/vae/qwen_image_vae.safetensors
 
-  - name: qwen-fp8
-    type: diffusion
-    dest: diffusion_models
-    source: huggingface
-    repo: Comfy-Org/Qwen-Image_ComfyUI
-    files:
-      - split_files/diffusion_models/qwen_image_fp8_e4m3fn.safetensors
+  # - name: qwen-fp8
+  #   type: diffusion
+  #   dest: diffusion_models
+  #   source: huggingface
+  #   repo: Comfy-Org/Qwen-Image_ComfyUI
+  #   files:
+  #     - split_files/diffusion_models/qwen_image_fp8_e4m3fn.safetensors
 
-  - name: qwen-text-encoder
-    type: text_encoder
-    dest: text_encoders
-    source: huggingface
-    repo: Comfy-Org/Qwen-Image_ComfyUI
-    files:
-      - split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+  # - name: qwen-text-encoder
+  #   type: text_encoder
+  #   dest: text_encoders
+  #   source: huggingface
+  #   repo: Comfy-Org/Qwen-Image_ComfyUI
+  #   files:
+  #     - split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
 
   # ================================
   # Loras
   # ================================
-  - name: qwen-lightning
-    type: lora
-    dest: loras
-    source: huggingface
-    repo: lightx2v/Qwen-Image-Lightning
-    files:
-      - Qwen-Image-Lightning-4steps-V1.0.safetensors
-      - Qwen-Image-Edit-2509/Qwen-Image-Edit-2509-Lightning-4steps-V1.0-bf16.safetensors
+  # - name: qwen-lightning
+  #   type: lora
+  #   dest: loras
+  #   source: huggingface
+  #   repo: lightx2v/Qwen-Image-Lightning
+  #   files:
+  #     - Qwen-Image-Lightning-4steps-V1.0.safetensors
+  #     - Qwen-Image-Edit-2509/Qwen-Image-Edit-2509-Lightning-4steps-V1.0-bf16.safetensors
 
-  - name: flux-fill
-    type: lora
-    dest: loras
-    source: huggingface
-    repo: lrzjason/ObjectRemovalFluxFill
-    files:
-      - removal_timestep_alpha-2-1740.safetensors
+  # - name: flux-fill
+  #   type: lora
+  #   dest: loras
+  #   source: huggingface
+  #   repo: lrzjason/ObjectRemovalFluxFill
+  #   files:
+  #     - removal_timestep_alpha-2-1740.safetensors
     
   # ================================
   # ControlNet OpenPose
   # ================================
-  - name: controlnet-openpose
-    type: controlnet
-    dest: controlnet
-    source: huggingface
-    repo: comfyanonymous/ControlNet-v1-1_fp16_safetensors
-    files:
-      - control_v11p_sd15_openpose_fp16.safetensors
+  # - name: controlnet-openpose
+  #   type: controlnet
+  #   dest: controlnet
+  #   source: huggingface
+  #   repo: comfyanonymous/ControlNet-v1-1_fp16_safetensors
+  #   files:
+  #     - control_v11p_sd15_openpose_fp16.safetensors
 
   # ================================
   # CVITAI 模型
   # ================================
-  - name: majicmix-v7
-    type: checkpoint
-    dest: checkpoints
-    source: civitai
-    url: "https://civitai.com/api/download/models/176425?type=Model&format=SafeTensor&size=pruned&fp=fp16"
-    filename: majicmixRealistic_v7.safetensors
+  # - name: majicmix-v7
+  #   type: checkpoint
+  #   dest: checkpoints
+  #   source: civitai
+  #   url: "https://civitai.com/api/download/models/176425?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+  #   filename: majicmixRealistic_v7.safetensors
 
-  - name: japanese-style-v20
-    type: checkpoint
-    dest: checkpoints
-    source: civitai
-    url: "https://civitai.com/api/download/models/85426?type=Model&format=SafeTensor&size=pruned&fp=fp16"
-    filename: japaneseStyleRealistic_v20.safetensors
+  # - name: japanese-style-v20
+  #   type: checkpoint
+  #   dest: checkpoints
+  #   source: civitai
+  #   url: "https://civitai.com/api/download/models/85426?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+  #   filename: japaneseStyleRealistic_v20.safetensors
