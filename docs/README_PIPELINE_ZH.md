@@ -1,139 +1,73 @@
-# DataEngine Pipeline 手册（当前可用范围）
+# DataEngine 文档主索引（MVP）
 
-## 1. 当前边界（先看这个）
+## 1. MVP 核心流水线
 
-方法论文路径是五阶段（generation/filter/annotation/train/HITL 闭环），但当前仓库主流程只建议按以下范围使用：
+目标闭环定义：
 
-`dataloader -> generation -> filter(phase1)`
+`dataloader(norm) -> control generation -> filter -> annotation <-> HITL -> training -> 产出`
 
-不在本手册执行范围内：
-- annotation
-- training
-- HITL 闭环
+当前实现状态（2026-02-25）：
+- 已稳定：`dataloader -> control generation -> filter(phase1)`
+- 未完成到主流程：`annotation / HITL / training`
 
-这些阶段在仓库里仍有历史 stub 或设计稿，但不作为当前主流程交付路径。
+本主文档负责：
+- 架构边界
+- kernel 编排关系
+- 分文档索引
 
-## 2. 配置文件怎么选（先理清）
+具体脚本/配置/运行细节放在各 kernel 分文档。
 
-| 目标 | 推荐配置 | 说明 |
+## 2. Kernel 编排视图
+
+1. `DataLoader (norm)`
+- 输入：raw real images（可选 label）
+- 输出：`real_manifest.jsonl`
+
+2. `Control Generation`
+- 输入：real manifest + ComfyUI workflow + prompt/control 配置
+- 输出：`synth_manifest.jsonl` + `mixed_manifest.jsonl`
+
+3. `Filter (phase1 now)`
+- 输入：`mixed_manifest.jsonl`（推荐）或显式 manifest
+- 输出：`filter_scores.jsonl` + `accept/reject/uncertain`
+
+4. `Annotation <-> HITL`（目标态，未并入当前主路径）
+
+5. `Training`（目标态，未并入当前主路径）
+
+## 3. Phase 产物流转关系（主流程）
+
+| Phase | 关键产物 | 下一个 Phase 如何消费 |
 | --- | --- | --- |
-| DataLoader（本地） | `configs/examples/dataloader_norm_test_generation_yk002.yaml` | 只跑 dataloader，产出 real manifest |
-| DataLoader（托管） | `configs/examples/dataloader_norm_test_generation_yk002_managed.yaml` | 给 `run_managed_pipeline.py` / serial plan 用，显式 `pipeline.steps: [dataloader]` |
-| Generation（prompt-only） | `configs/examples/comfyui_generate_from_norm_yk001_prompt_only_managed.yaml` | ComfyUI 纯 prompt 路径 |
-| Generation（prompt+canny） | `configs/examples/comfyui_generate_from_norm_yk001_prompt_canny_managed.yaml` | ComfyUI 引导图路径 |
-| Filter（phase1 路由） | `test/test-filters/configs/filter_compose.yaml` | 当前保留的可运行 filter 配置 |
-| 容器入口环境 | `deploy/pipeline/.env.example` | 队列/串行计划入口变量 |
-| 串行计划样例 | `deploy/pipeline/pipeline_serial_plan.example.yaml` | v1 串行执行（默认示例是 dataloader + generation） |
+| DataLoader | `dataloader/real_manifest.jsonl` | Generation 通过 `generate.real_manifest` 读取 |
+| Control Generation | `generate/mixed_manifest.jsonl` | Filter 作为主输入 manifest（推荐自动发现） |
+| Filter(phase1) | `filter_scores.jsonl` + `splits/*` | 目标态交给 Annotation/HITL/Training（当前未并入默认主路径） |
+| Annotation/HITL（目标态） | 清洗标注数据集 | Training 消费 |
+| Training（目标态） | 模型与评估产物 | 反馈下轮配置/策略 |
 
-## 3. 最小可跑路径（phase1）
+## 4. 分文档索引（前 3 个 kernel）
 
-先决条件：
-- 在仓库根目录：`/home/yan/StudioSpace/DataEngine`
-- Python 可用
-- ComfyUI API 可访问：`http://127.0.0.1:8188`
+- DataLoader（norm）：
+  [docs/kernels/dataloader_norm.md](/home/yan/StudioSpace/DataEngine/docs/kernels/dataloader_norm.md)
+- Control Generation（ComfyUI）：
+  [docs/kernels/control_generation.md](/home/yan/StudioSpace/DataEngine/docs/kernels/control_generation.md)
+- Filter（phase1）：
+  [docs/kernels/filter_phase1.md](/home/yan/StudioSpace/DataEngine/docs/kernels/filter_phase1.md)
 
-### 3.1 DataLoader
+兼容入口（历史名称）：
+- [docs/filter_quickstart.md](/home/yan/StudioSpace/DataEngine/docs/filter_quickstart.md)
 
-```bash
-python ingest/run_dataloader.py \
-  --config configs/examples/dataloader_norm_test_generation_yk002.yaml
-```
+## 5. Pipeline 编排入口
 
-关键产物：
-- `artifacts/runs/dataloader_norm_test_generation_yk002/dataloader/real_manifest.jsonl`
-- `artifacts/runs/dataloader_norm_test_generation_yk002/dataloader/report.json`
+- 单配置托管运行：`pipelines/run_managed_pipeline.py`
+- 容器入口：`deploy/pipeline/docker-compose.pipeline.yml`
+- 串行计划：`deploy/pipeline/pipeline_serial_plan.example.yaml`
 
-### 3.2 Generation（二选一）
-
-prompt-only：
-```bash
-python synth/run_generate.py \
-  --config configs/examples/comfyui_generate_from_norm_yk001_prompt_only_managed.yaml
-```
-
-prompt+canny：
-```bash
-python synth/run_generate.py \
-  --config configs/examples/comfyui_generate_from_norm_yk001_prompt_canny_managed.yaml
-```
-
-关键产物（run_id 对应配置中的 `run.run_id`）：
-- `artifacts/runs/<run_id>/generate/synth_manifest.jsonl`
-- `artifacts/runs/<run_id>/generate/mixed_manifest.jsonl`
-- `artifacts/runs/<run_id>/generate/report.json`
-
-### 3.3 Filter（phase1）
-
-```bash
-python filter/run_filter.py \
-  --config test/test-filters/configs/filter_compose.yaml
-```
-
-关键产物：
-- `test/test-filters/runs/testfilter_compose/filter/filter_scores.jsonl`
-- `test/test-filters/runs/testfilter_compose/filter/splits/{accept,reject,uncertain}.jsonl`
-- `test/test-filters/runs/testfilter_compose/filter/report.json`
-
-## 4. 托管运行（长任务）
-
-### 4.1 托管 runner
-
-```bash
-python pipelines/run_managed_pipeline.py --config <your_config.yaml>
-```
-
-特性：
-- 单实例锁：`managed.lock`
-- PID 文件：`managed.pid`
-- 收到 `SIGTERM/SIGINT` 可优雅退出
-- `pipeline.resume_from_artifacts=true` 时支持续跑
-
-### 4.2 docker compose
-
-```bash
-cp deploy/pipeline/.env.example deploy/pipeline/.env
-```
-
-`deploy/pipeline/.env` 优先级：
+`deploy/pipeline/.env` 变量优先级：
 `PIPELINE_SERIAL_PLAN` > `PIPELINE_CONFIG_LIST_FILE/PIPELINE_CONFIGS` > `PIPELINE_CONFIG`
 
-启动：
-```bash
-docker compose --env-file deploy/pipeline/.env -f deploy/pipeline/docker-compose.pipeline.yml up -d --build
-```
+## 6. 文档边界规则
 
-看日志：
-```bash
-tail -f artifacts/logs/managed_pipeline.log
-ls -lt artifacts/logs/*_*.log | head
-ls -lt artifacts/logs/serial_plan_summary_*.json | head
-```
-
-停止：
-```bash
-docker compose --env-file deploy/pipeline/.env -f deploy/pipeline/docker-compose.pipeline.yml down
-```
-
-### 4.3 systemd（可选）
-
-```bash
-bash deploy/systemd/install_pipeline_service.sh
-sudo systemctl status dataengine-pipeline.service
-```
-
-## 5. 已弃用/不再推荐路径
-
-- `artifacts/testfilter/configs/*`：已不作为配置来源（路径已迁移到 `test/test-filters/configs/`）。
-- `configs/examples/dataloader_norm_test_generation_yk001.yaml`：已删除。
-- 文档中的全链路 `dataloader -> generate -> filter -> train -> eval` 旧示例：不再作为当前交付路径。
-
-## 6. 常见排查
-
-1. `missing real manifest`
-- 先确认 dataloader 已产出 `real_manifest.jsonl`。
-
-2. `generate.backend=comfyui requires ... workflow to exist`
-- 检查 `generate.comfyui.workflow` 是否存在且是 API prompt graph。
-
-3. Filter 报 real anchor 不足
-- 检查输入 manifest 是否包含 `source=real` 样本。
+- 主文档：只放架构、边界、索引，不展开参数细节。
+- 分文档：只放对应 kernel 的技术细节、脚本运行、配置说明、产物和排查。
+- 事实状态变更：记录到 `docs/state/*.md`。

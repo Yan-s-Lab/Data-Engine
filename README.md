@@ -5,6 +5,11 @@ This branch is the CLI-first rewrite scaffold.
 ## 中文手册（傻瓜式）
 - `docs/README_PIPELINE_ZH.md`
 
+## Kernel Docs
+- `docs/kernels/dataloader_norm.md`
+- `docs/kernels/control_generation.md`
+- `docs/kernels/filter_phase1.md`
+
 ## Verified examples in `configs/examples`
 
 1. Normalize raw real data (DataLoader):
