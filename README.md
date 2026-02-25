@@ -4,7 +4,15 @@ This branch is the CLI-first rewrite scaffold.
 
 ## Prepare Phase (before any run scripts)
 
-1. Python environment (`>=3.10`):
+1. Python environment (`>=3.10`, recommended: conda + pip):
+```bash
+conda create -n dataengine python=3.10 -y
+conda activate dataengine
+pip install -U pip
+pip install -r requirements.txt
+```
+
+Optional fallback (if you do not use conda):
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
