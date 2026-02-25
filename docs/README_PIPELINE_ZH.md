@@ -144,6 +144,7 @@ PIPELINE_CONFIG_LIST_FILE=deploy/pipeline/pipeline_configs.example.txt
 
 # 串行分阶段编排（v1，不并发）
 PIPELINE_SERIAL_PLAN=deploy/pipeline/pipeline_serial_plan.example.yaml
+# 注意：plan 中 dataloader 任务请使用 `*_managed.yaml`（含 `pipeline.steps: [dataloader]`）
 
 # 失败策略：false=任一任务失败即停止；true=继续跑后续任务
 PIPELINE_CONTINUE_ON_ERROR=false
