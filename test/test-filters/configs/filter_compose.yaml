@@ -169,11 +169,23 @@ filter:
 
     # gates 支持 threshold（固定值）或 threshold_from（如 q05_real）。
     gates:
-      # semantic gate：要求 s_phase1_semantic 不低于 real 的 5% 分位（再留 buffer）。
+      # semantic gate：仅用于 guided/fallback 路由，不用于 prompt-only 路由。
       - metric: s_phase1_semantic
         op: ">="
         threshold_from: q05_real
         buffer: 0.02
+        phase1_sources:
+          - semantic_pair
+          - semantic_anchor
+
+      # prompt-only 路由单独 gate：要求 prompt margin 不低于固定阈值。
+      # 该 gate 只作用于 phase1_source=prompt_score 的样本。
+      - metric: s_prompt_margin_norm
+        op: ">="
+        threshold: 0.25
+        buffer: 0.02
+        phase1_sources:
+          - prompt_score
 
       # 当前 multicrop stage 关闭，因此这个 gate 也注释掉。
       # - metric: s_multicrop_consistency

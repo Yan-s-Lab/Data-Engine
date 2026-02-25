@@ -574,6 +574,28 @@ def _eval_gate(metric_value: float, op: str, threshold: float) -> bool:
     return False
 
 
+def _gate_applies_to_row(
+    gate_cfg: Dict[str, Any],
+    row: Dict[str, Any],
+    phase1_source: str,
+) -> bool:
+    source = str(row.get("source", "")).strip()
+    src_in = [str(x).strip() for x in gate_cfg.get("sources", []) if str(x).strip()]
+    src_not_in = [str(x).strip() for x in gate_cfg.get("sources_exclude", []) if str(x).strip()]
+    p1_in = [str(x).strip() for x in gate_cfg.get("phase1_sources", []) if str(x).strip()]
+    p1_not_in = [str(x).strip() for x in gate_cfg.get("phase1_sources_exclude", []) if str(x).strip()]
+
+    if src_in and source not in set(src_in):
+        return False
+    if src_not_in and source in set(src_not_in):
+        return False
+    if p1_in and phase1_source not in set(p1_in):
+        return False
+    if p1_not_in and phase1_source in set(p1_not_in):
+        return False
+    return True
+
+
 def _resolve_gate_threshold(
     gate_cfg: Dict[str, Any],
     metric_name: str,
@@ -915,6 +937,12 @@ def run_composed_clip_filter(
                     "op": op,
                     "threshold": float(threshold),
                     "buffer": float(g.get("buffer", 0.0)),
+                    "sources": [str(x).strip() for x in g.get("sources", []) if str(x).strip()],
+                    "sources_exclude": [str(x).strip() for x in g.get("sources_exclude", []) if str(x).strip()],
+                    "phase1_sources": [str(x).strip() for x in g.get("phase1_sources", []) if str(x).strip()],
+                    "phase1_sources_exclude": [
+                        str(x).strip() for x in g.get("phase1_sources_exclude", []) if str(x).strip()
+                    ],
                 }
             )
 
@@ -955,11 +983,16 @@ def run_composed_clip_filter(
         if strategy in {"tri_gate", "tri_gate_plus_weighted"} and gate_specs:
             all_pass = True
             near = False
+            applied_gate_count = 0
             gate_fail_reasons: List[str] = []
             for g in gate_specs:
                 metric_name = str(g["metric"])
                 op = str(g["op"])
                 threshold = float(g["threshold"])
+                if not _gate_applies_to_row(gate_cfg=g, row=row, phase1_source=s_phase1_semantic_source):
+                    gate_checks.append(f"{metric_name} skip (gate condition not matched)")
+                    continue
+                applied_gate_count += 1
                 mv = metric_value(metric_name, row)
                 passed = _eval_gate(mv, op, threshold)
                 gate_checks.append(f"{metric_name} {mv:.6f} {op} {threshold:.6f} => {'pass' if passed else 'fail'}")
@@ -974,7 +1007,9 @@ def run_composed_clip_filter(
                     else:
                         near = near or (abs(mv - threshold) <= buf)
 
-            if all_pass:
+            if applied_gate_count == 0:
+                decision = choose_decision(final_score, accept_threshold, uncertain_low, uncertain_high)
+            elif all_pass:
                 decision = "accept"
             elif near:
                 decision = "uncertain"

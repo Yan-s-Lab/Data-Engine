@@ -5,10 +5,16 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from filter.run_filter import _resolve_filter_prompt_text, build_phase1_semantic_scores
+from filter.run_filter import _gate_applies_to_row, _resolve_filter_prompt_text, build_phase1_semantic_scores
 
 
 class FilterPhase1SemanticTest(unittest.TestCase):
+    def test_gate_condition_by_phase1_source(self) -> None:
+        row = {"sample_id": "s_prompt", "source": "synthetic"}
+        gate_cfg = {"metric": "s_phase1_semantic", "phase1_sources": ["semantic_pair", "semantic_anchor"]}
+        self.assertFalse(_gate_applies_to_row(gate_cfg=gate_cfg, row=row, phase1_source="prompt_score"))
+        self.assertTrue(_gate_applies_to_row(gate_cfg=gate_cfg, row=row, phase1_source="semantic_pair"))
+
     def test_phase1_routing_guided_prompt_and_fallback(self) -> None:
         rows = [
             {"sample_id": "r1", "source": "real"},
