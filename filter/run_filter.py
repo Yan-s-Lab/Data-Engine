@@ -433,6 +433,24 @@ def _resolve_filter_prompt_text(
     return ""
 
 
+def _resolve_filter_input_manifest(
+    *,
+    filter_cfg: Dict[str, Any],
+    run_dir: Path,
+) -> tuple[Path | None, str]:
+    input_manifest = filter_cfg.get("input_manifest")
+    if input_manifest:
+        return Path(str(input_manifest)), "filter.input_manifest"
+
+    auto_from_generate = bool(filter_cfg.get("auto_input_from_generate_mixed", True))
+    if auto_from_generate:
+        mixed_manifest = run_dir / "generate" / "mixed_manifest.jsonl"
+        if mixed_manifest.exists():
+            return mixed_manifest, "run_dir/generate/mixed_manifest.jsonl"
+
+    return None, ""
+
+
 def _is_real_guided_synth(row: Dict[str, Any], phase1_cfg: Dict[str, Any]) -> bool:
     if str(row.get("source", "")) != "synthetic":
         return False
@@ -1405,14 +1423,18 @@ def main() -> None:
         if prompt_source and isinstance(clip_cfg, dict):
             clip_cfg["prompt_text_source"] = prompt_source
 
-    input_manifest = filter_cfg.get("input_manifest")
-    input_manifest_path = Path(str(input_manifest)) if input_manifest else None
+    input_manifest_path, input_manifest_source = _resolve_filter_input_manifest(
+        filter_cfg=filter_cfg,
+        run_dir=run_dir,
+    )
     builder_cfg = dict(filter_cfg.get("manifest_builder", {}))
     builder_enabled = bool(builder_cfg.get("enabled", False))
     builder_force = bool(builder_cfg.get("force_rebuild", False))
 
     if builder_enabled and (builder_force or input_manifest_path is None or not input_manifest_path.exists()):
         rows = build_input_manifest_from_config(filter_cfg=filter_cfg, input_manifest_path=input_manifest_path)
+        if not input_manifest_source:
+            input_manifest_source = "filter.manifest_builder"
     elif input_manifest_path is not None:
         rows = read_jsonl(input_manifest_path)
     else:
@@ -1420,6 +1442,7 @@ def main() -> None:
             total_count=int(filter_cfg.get("stub_total_count", 24)),
             real_ratio=float(filter_cfg.get("stub_real_ratio", 0.5)),
         )
+        input_manifest_source = "stub_manifest"
 
     accept_threshold = float(filter_cfg.get("accept_threshold", 0.6))
     uncertain_low = float(filter_cfg.get("uncertain_low", 0.45))
@@ -1482,6 +1505,8 @@ def main() -> None:
         "stage": "filter",
         "mode": mode,
         "run_dir": str(run_dir),
+        "input_manifest_path": str(input_manifest_path) if input_manifest_path is not None else "",
+        "input_manifest_source": input_manifest_source,
         "total": len(rows),
         "accept": len(accept_rows),
         "reject": len(reject_rows),

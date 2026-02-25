@@ -73,7 +73,29 @@ filter:
 - `splits/uncertain.jsonl`
 - `report.json`
 
-## 6. 排查要点
+## 6. 推荐输入链路（Generation -> Filter）
+
+推荐让 Filter 直接读取 generation 阶段的 `mixed_manifest.jsonl`，而不是通过文件名重建：
+
+```yaml
+run:
+  run_id: your_run_id
+  artifacts_root: artifacts/runs
+
+filter:
+  mode: compose
+  # 可选：不写时会自动尝试 run_dir/generate/mixed_manifest.jsonl
+  # input_manifest: artifacts/runs/your_run_id/generate/mixed_manifest.jsonl
+  auto_input_from_generate_mixed: true
+```
+
+`run_filter.py` 的输入优先级：
+1. `filter.input_manifest`（显式指定）
+2. `run_dir/generate/mixed_manifest.jsonl`（默认自动启用）
+3. `manifest_builder`（当启用且满足触发条件）
+4. stub manifest（仅无输入时兜底）
+
+## 7. 排查要点
 
 1. `anchor_ood.enabled=false` 且 `reason=insufficient_anchor_embeddings`
 - 真实 anchor 太少（常见于小样本 smoke），先增加 real 样本数量
@@ -86,7 +108,7 @@ filter:
 - 先放宽 gate（例如调低 quantile 或增加 buffer）
 - 再检查 prompt 质量与 `prompt_field` 是否有效
 
-## 7. 自动生成 `input_manifest.jsonl`（不手写）
+## 8. 自动生成 `input_manifest.jsonl`（不手写，兜底方案）
 
 `filter/run_filter.py` 支持在读取输入前自动构建 manifest：
 
