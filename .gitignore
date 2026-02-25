@@ -9,3 +9,4 @@ third_party/openpose/
 third_party/runs/
 runs/
 **/.temp
+deploy/pipeline/.env

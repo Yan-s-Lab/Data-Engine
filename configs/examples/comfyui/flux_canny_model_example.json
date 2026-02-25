@@ -1,7 +1,7 @@
 {
   "3": {
     "inputs": {
-      "seed": 818235787372374,
+      "seed": 774839773833192,
       "steps": 20,
       "cfg": 1,
       "sampler_name": "euler",
@@ -60,7 +60,7 @@
   },
   "17": {
     "inputs": {
-      "image": "yukang-scientist.png"
+      "image": "yk-001_arm_deltoid_muscle_seg_0029.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -69,8 +69,8 @@
   },
   "18": {
     "inputs": {
-      "low_threshold": 0.15,
-      "high_threshold": 0.3,
+      "low_threshold": 0.13,
+      "high_threshold": 0.15,
       "image": [
         "17",
         0
@@ -95,7 +95,7 @@
   },
   "23": {
     "inputs": {
-      "text": "A vibrant red ladybug rests on a blooming deep purple rose with lush, velvety petals. The background is a soft pink, filled with subtly blurred roses of the same pink shade, creating a dreamy and romantic atmosphere.",
+      "text": "A photorealistic scene inside a scene_type, with background_detail.\nSubject: a seated age_group ethnicity gender with body_type, hair_style, skin_texture, skin_tone, and scars, wearing a clothing, with the deltoid_exposed_side sleeve completely removed from the arm and tucked securely under the armpit, leaving the deltoid_exposed_side shoulder and upper arm fully exposed while keeping the chest and back covered.\nSeated on a seat_type, positioned comfortably.\nPose and framing: The subject sits upright, fully side-facing the camera, exposing the deltoid_exposed_side shoulder and upper arm in a centered lateral profile.\nLighting: primary_light, secondary_fill, rim_light.\nFocus: high-resolution skin texture and clearly defined deltoid contour; background rendered with shallow depth of field.\nMood: mood.",
       "clip": [
         "34",
         0
