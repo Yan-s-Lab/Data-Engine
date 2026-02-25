@@ -57,7 +57,17 @@
 兼容入口（历史名称）：
 - [docs/filter_quickstart.md](/home/yan/StudioSpace/DataEngine/docs/filter_quickstart.md)
 
-## 5. Pipeline 编排入口
+## 5. 运行前准备（入口）
+
+- 快速准备清单见：
+  [README.md](/home/yan/StudioSpace/DataEngine/README.md)
+  `Prepare Phase (before any run scripts)` 小节。
+- 若目标是跑到 generation，请先确保：
+  - Python 依赖已安装（`requirements.txt`）
+  - ComfyUI 服务可用（`third_party/comfyui/comfyui_ctl.sh check`）
+  - dataloader 配置中的输入路径存在（`dataloader.image_dir`/`label_dir`）
+
+## 6. Pipeline 编排入口
 
 - 单配置托管运行：`pipelines/run_managed_pipeline.py`
 - 容器入口：`deploy/pipeline/docker-compose.pipeline.yml`
@@ -66,7 +76,7 @@
 `deploy/pipeline/.env` 变量优先级：
 `PIPELINE_SERIAL_PLAN` > `PIPELINE_CONFIG_LIST_FILE/PIPELINE_CONFIGS` > `PIPELINE_CONFIG`
 
-## 6. 文档边界规则
+## 7. 文档边界规则
 
 - 主文档：只放架构、边界、索引，不展开参数细节。
 - 分文档：只放对应 kernel 的技术细节、脚本运行、配置说明、产物和排查。

@@ -2,6 +2,30 @@
 
 This branch is the CLI-first rewrite scaffold.
 
+## Prepare Phase (before any run scripts)
+
+1. Python environment (`>=3.10`):
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -r requirements.txt
+```
+
+2. Runtime dependencies for generation (ComfyUI backend):
+- Docker + Docker Compose
+- NVIDIA driver + `nvidia-container-toolkit` (GPU mode)
+
+3. Start or verify ComfyUI service:
+```bash
+./third_party/comfyui/comfyui_ctl.sh ensure
+./third_party/comfyui/comfyui_ctl.sh check
+```
+
+4. Ensure dataset paths in your dataloader config exist before running:
+- `dataloader.image_dir`
+- `dataloader.label_dir` (if labels are required)
+
 ## 中文手册（傻瓜式）
 - `docs/README_PIPELINE_ZH.md`
 
