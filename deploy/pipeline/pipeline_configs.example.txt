@@ -1,0 +1,3 @@
+# 每行一个配置，按顺序串行执行
+configs/examples/comfyui_generate_from_norm_yk001_prompt_only_managed.yaml
+configs/examples/comfyui_generate_from_norm_yk001_prompt_canny_managed.yaml

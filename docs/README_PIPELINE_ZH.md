@@ -131,14 +131,32 @@ pipeline:
 ```bash
 cp deploy/pipeline/.env.example deploy/pipeline/.env
 ```
-2. 根据需要修改 `deploy/pipeline/.env` 里的 `PIPELINE_CONFIG`。
+2. 根据需要修改 `deploy/pipeline/.env`（单任务或多任务二选一）：
+```bash
+# 单任务（向后兼容）
+PIPELINE_CONFIG=configs/examples/comfyui_generate_from_norm_yk001_prompt_only_managed.yaml
+
+# 多任务方式 A：CSV（按顺序串行）
+PIPELINE_CONFIGS=configs/examples/comfyui_generate_from_norm_yk001_prompt_only_managed.yaml,configs/examples/comfyui_generate_from_norm_yk001_prompt_canny_managed.yaml
+
+# 多任务方式 B：文件（推荐；支持注释）
+PIPELINE_CONFIG_LIST_FILE=deploy/pipeline/pipeline_configs.example.txt
+
+# 失败策略：false=任一任务失败即停止；true=继续跑后续任务
+PIPELINE_CONTINUE_ON_ERROR=false
+```
 3. 启动：
 ```bash
 docker compose --env-file deploy/pipeline/.env -f deploy/pipeline/docker-compose.pipeline.yml up -d --build
 ```
 4. 查看日志（固定落盘）：
 ```bash
+# 总控日志（队列启动/完成/失败）
 tail -f artifacts/logs/managed_pipeline.log
+
+# 任务日志（按配置名自动拆分）
+ls -lt artifacts/logs/*_*.log | head
+tail -f artifacts/logs/comfyui_generate_from_norm_yk001_prompt_only_managed_YYYYmmdd_HHMMSS.log
 ```
 
 ### 7.3 主机重启后自动恢复（systemd）

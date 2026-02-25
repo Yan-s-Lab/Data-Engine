@@ -12,7 +12,10 @@ services:
     stop_grace_period: 2m
     environment:
       PIPELINE_CONFIG: ${PIPELINE_CONFIG:-configs/examples/dataloader_norm_test.yaml}
+      PIPELINE_CONFIGS: ${PIPELINE_CONFIGS:-}
+      PIPELINE_CONFIG_LIST_FILE: ${PIPELINE_CONFIG_LIST_FILE:-}
       PIPELINE_RESUME: ${PIPELINE_RESUME:-true}
+      PIPELINE_CONTINUE_ON_ERROR: ${PIPELINE_CONTINUE_ON_ERROR:-false}
       PIPELINE_LOG_DIR: ${PIPELINE_LOG_DIR:-/workspace/artifacts/logs}
       PIPELINE_LOG_FILE: ${PIPELINE_LOG_FILE:-/workspace/artifacts/logs/managed_pipeline.log}
     volumes:
