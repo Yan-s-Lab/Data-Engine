@@ -12,7 +12,7 @@ import string
 import sys
 import time
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from urllib.parse import urlencode, urlparse, urlunparse
 
 from PIL import Image, ImageEnhance, ImageOps
@@ -37,6 +37,11 @@ def synthesize_image(src_path: Path, out_path: Path, seed: int) -> None:
         brightness = 0.85 + rng.random() * 0.4
         out = ImageEnhance.Brightness(out).enhance(brightness)
         out.save(out_path)
+
+
+def image_size(path: Path) -> Tuple[int, int]:
+    with Image.open(path) as img:
+        return img.size
 
 
 def submit_prompt(
@@ -448,6 +453,99 @@ def normalize_anchor_configs(comfy_cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
     return cfgs
 
 
+def _anchor_size_filter_thresholds(comfy_cfg: Dict[str, Any]) -> Tuple[int, int, int]:
+    anchor_filter = comfy_cfg.get("anchor_filter", {})
+    if anchor_filter is None:
+        anchor_filter = {}
+    if not isinstance(anchor_filter, dict):
+        raise ValueError("generate.comfyui.anchor_filter must be a dict when provided")
+    max_width = int(anchor_filter.get("max_width", 0))
+    max_height = int(anchor_filter.get("max_height", 0))
+    max_long_edge = int(anchor_filter.get("max_long_edge", 0))
+    if max_width < 0 or max_height < 0 or max_long_edge < 0:
+        raise ValueError("generate.comfyui.anchor_filter thresholds must be >= 0")
+    return max_width, max_height, max_long_edge
+
+
+def filter_anchor_rows_by_size(
+    real_rows: List[Dict[str, Any]],
+    comfy_cfg: Dict[str, Any],
+    anchor_cfgs: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    max_width, max_height, max_long_edge = _anchor_size_filter_thresholds(comfy_cfg)
+    enabled = any(v > 0 for v in (max_width, max_height, max_long_edge))
+    if not enabled:
+        return real_rows, {
+            "anchor_filter_enabled": False,
+            "anchor_total_count": len(real_rows),
+            "anchor_eligible_count": len(real_rows),
+            "anchor_skipped_count": 0,
+            "anchor_filter_max_width": max_width,
+            "anchor_filter_max_height": max_height,
+            "anchor_filter_max_long_edge": max_long_edge,
+        }
+
+    path_field = "image_path"
+    if anchor_cfgs:
+        path_field = str(anchor_cfgs[0].get("path_field", "image_path"))
+
+    kept: List[Dict[str, Any]] = []
+    skipped_samples: List[Dict[str, Any]] = []
+    for row in real_rows:
+        sample_id = str(row.get("sample_id", "")).strip()
+        image_path_val = str(row.get(path_field, "")).strip()
+        if not image_path_val:
+            skipped_samples.append(
+                {"sample_id": sample_id, "reason": f"missing_path_field:{path_field}"}
+            )
+            continue
+        image_path = Path(image_path_val)
+        if not image_path.exists():
+            skipped_samples.append(
+                {"sample_id": sample_id, "reason": "missing_file", "image_path": str(image_path)}
+            )
+            continue
+        width, height = image_size(image_path)
+        reasons: List[str] = []
+        if max_width > 0 and width > max_width:
+            reasons.append(f"width>{max_width}")
+        if max_height > 0 and height > max_height:
+            reasons.append(f"height>{max_height}")
+        if max_long_edge > 0 and max(width, height) > max_long_edge:
+            reasons.append(f"long_edge>{max_long_edge}")
+        if reasons:
+            skipped_samples.append(
+                {
+                    "sample_id": sample_id,
+                    "image_path": str(image_path),
+                    "width": width,
+                    "height": height,
+                    "reason": ",".join(reasons),
+                }
+            )
+            continue
+        kept.append(row)
+
+    for item in skipped_samples[:10]:
+        print(
+            "[comfyui] anchor skipped by size filter: "
+            f"sample_id={item.get('sample_id', '')} reason={item.get('reason', '')}"
+        )
+
+    stats: Dict[str, Any] = {
+        "anchor_filter_enabled": True,
+        "anchor_total_count": len(real_rows),
+        "anchor_eligible_count": len(kept),
+        "anchor_skipped_count": len(skipped_samples),
+        "anchor_filter_max_width": max_width,
+        "anchor_filter_max_height": max_height,
+        "anchor_filter_max_long_edge": max_long_edge,
+    }
+    if skipped_samples:
+        stats["anchor_skipped_samples_preview"] = skipped_samples[:10]
+    return kept, stats
+
+
 def apply_anchor_images(
     workflow: Dict[str, Any],
     anchor_cfgs: List[Dict[str, Any]],
@@ -539,6 +637,13 @@ def generate_with_comfyui(
     if not isinstance(prompt_cfg, dict):
         raise ValueError("generate.comfyui.prompt must be a dict when provided")
     anchor_cfgs = normalize_anchor_configs(comfy_cfg)
+    eligible_real_rows, anchor_filter_stats = filter_anchor_rows_by_size(
+        real_rows=real_rows,
+        comfy_cfg=comfy_cfg,
+        anchor_cfgs=anchor_cfgs,
+    )
+    if not eligible_real_rows:
+        raise RuntimeError("all real anchors were skipped by generate.comfyui.anchor_filter")
     filename_prefix_cfg = comfy_cfg.get("filename_prefix", {})
     if filename_prefix_cfg is None:
         filename_prefix_cfg = {}
@@ -554,7 +659,7 @@ def generate_with_comfyui(
     max_synth = int(gen_cfg.get("max_synth_samples", 0))
     seed_base = int(gen_cfg.get("seed_base", 20260212))
 
-    target_count = len(real_rows) * max(synth_per_real, 0)
+    target_count = len(eligible_real_rows) * max(synth_per_real, 0)
     if max_synth > 0:
         target_count = min(target_count, max_synth) if target_count > 0 else max_synth
     if target_count <= 0:
@@ -572,7 +677,7 @@ def generate_with_comfyui(
 
     def prepare_job(idx: int, retry_count: int = 0) -> Dict[str, Any]:
         seed = seed_base + idx
-        anchor = real_rows[idx % len(real_rows)]
+        anchor = eligible_real_rows[idx % len(eligible_real_rows)]
         workflow = deepcopy(prompt_graph_template)
         set_workflow_seed(workflow, seed_node_id, seed_input_key, seed)
         effective_prompt_text = set_workflow_prompt_text(
@@ -821,6 +926,7 @@ def generate_with_comfyui(
             job_idx += 1
 
     gen_cfg["_timeout_stats"] = timeout_stats
+    gen_cfg["_anchor_filter_stats"] = anchor_filter_stats
 
     return synth_rows
 
@@ -940,6 +1046,9 @@ def main() -> None:
     timeout_stats = gen_cfg.get("_timeout_stats", {})
     if isinstance(timeout_stats, dict):
         report.update(timeout_stats)
+    anchor_filter_stats = gen_cfg.get("_anchor_filter_stats", {})
+    if isinstance(anchor_filter_stats, dict):
+        report.update(anchor_filter_stats)
     write_json(gen_dir / "report.json", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 

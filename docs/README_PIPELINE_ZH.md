@@ -39,6 +39,13 @@ python synth/run_generate.py \
 说明：
 - 当前示例将 `generate.comfyui.filename_prefix.template` 设置为 `{anchor_image_stem}_canny`，
   即以引导图（raw 优先，缺失则回退到 manifest 中 image_path）的文件名 stem 作为输出前缀。
+- 若需要跳过超大锚图（避免 OOM），可配置：
+```yaml
+generate:
+  comfyui:
+    anchor_filter:
+      max_long_edge: 1536   # 超过该最长边的 real image 会被直接跳过
+```
 
 关键产物：
 - `artifacts/runs/yk001_prompt_canny_demo/generate/synth_manifest.jsonl`
