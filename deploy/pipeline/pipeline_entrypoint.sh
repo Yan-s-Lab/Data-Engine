@@ -14,6 +14,7 @@ DEFAULT_SINGLE_CONFIG="configs/examples/dataloader_norm_test.yaml"
 CONFIG_PATH="${PIPELINE_CONFIG:-${DEFAULT_SINGLE_CONFIG}}"
 CONFIGS_CSV="${PIPELINE_CONFIGS:-}"
 CONFIG_LIST_FILE="${PIPELINE_CONFIG_LIST_FILE:-}"
+SERIAL_PLAN="${PIPELINE_SERIAL_PLAN:-}"
 
 mkdir -p "${LOG_DIR}"
 
@@ -32,7 +33,16 @@ trim() {
 
 declare -a CONFIG_QUEUE=()
 
-if [[ -n "${CONFIG_LIST_FILE}" ]]; then
+if [[ -n "${SERIAL_PLAN}" ]]; then
+  echo "[entrypoint] serial plan mode: plan=${SERIAL_PLAN}" | tee -a "${LOG_FILE}"
+  exec ${PY_BIN} pipelines/run_serial_plan.py \
+    --plan "${SERIAL_PLAN}" \
+    --python-bin "${PY_BIN}" \
+    --resume "${RESUME_FLAG}" \
+    --log-dir "${LOG_DIR}" \
+    --log-file "${LOG_FILE}" \
+    --continue-on-error "${CONTINUE_ON_ERROR}"
+elif [[ -n "${CONFIG_LIST_FILE}" ]]; then
   if [[ ! -f "${CONFIG_LIST_FILE}" ]]; then
     echo "[entrypoint] ERROR: PIPELINE_CONFIG_LIST_FILE not found: ${CONFIG_LIST_FILE}" | tee -a "${LOG_FILE}"
     exit 2

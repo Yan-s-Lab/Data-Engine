@@ -131,7 +131,7 @@ pipeline:
 ```bash
 cp deploy/pipeline/.env.example deploy/pipeline/.env
 ```
-2. 根据需要修改 `deploy/pipeline/.env`（单任务或多任务二选一）：
+2. 根据需要修改 `deploy/pipeline/.env`（三选一；优先级从高到低：`PIPELINE_SERIAL_PLAN` > `PIPELINE_CONFIG_LIST_FILE/PIPELINE_CONFIGS` > `PIPELINE_CONFIG`）：
 ```bash
 # 单任务（向后兼容）
 PIPELINE_CONFIG=configs/examples/comfyui_generate_from_norm_yk001_prompt_only_managed.yaml
@@ -141,6 +141,9 @@ PIPELINE_CONFIGS=configs/examples/comfyui_generate_from_norm_yk001_prompt_only_m
 
 # 多任务方式 B：文件（推荐；支持注释）
 PIPELINE_CONFIG_LIST_FILE=deploy/pipeline/pipeline_configs.example.txt
+
+# 串行分阶段编排（v1，不并发）
+PIPELINE_SERIAL_PLAN=deploy/pipeline/pipeline_serial_plan.example.yaml
 
 # 失败策略：false=任一任务失败即停止；true=继续跑后续任务
 PIPELINE_CONTINUE_ON_ERROR=false
@@ -157,6 +160,9 @@ tail -f artifacts/logs/managed_pipeline.log
 # 任务日志（按配置名自动拆分）
 ls -lt artifacts/logs/*_*.log | head
 tail -f artifacts/logs/comfyui_generate_from_norm_yk001_prompt_only_managed_YYYYmmdd_HHMMSS.log
+
+# 串行计划执行摘要
+ls -lt artifacts/logs/serial_plan_summary_*.json | head
 ```
 
 ### 7.3 主机重启后自动恢复（systemd）
