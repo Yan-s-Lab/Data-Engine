@@ -166,6 +166,11 @@ tail -f artifacts/logs/comfyui_generate_from_norm_yk001_prompt_only_managed_YYYY
 ls -lt artifacts/logs/serial_plan_summary_*.json | head
 ```
 
+```bash
+# 中途终止任务
+docker compose --env-file deploy/pipeline/.env -f deploy/pipeline/docker-compose.pipeline.yml down
+```
+
 ### 7.3 主机重启后自动恢复（systemd）
 
 安装并启用服务：

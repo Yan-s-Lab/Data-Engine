@@ -1,7 +1,6 @@
-A photorealistic scene inside a {scene_type}, with {background_detail}.
-Subject: a seated {age_group} {ethnicity} {gender} with {body_type}, {hair_style}, {skin_texture}, {skin_tone}, and {scars}, wearing a {clothing}, with the {deltoid_exposed_side} sleeve completely removed from the arm and tucked securely under the armpit, leaving the {deltoid_exposed_side} shoulder and upper arm fully exposed while keeping the chest and back covered.
-Seated on a {seat_type}, positioned comfortably.
-Pose and framing: The subject sits upright, fully side-facing the camera, exposing the {deltoid_exposed_side} shoulder and upper arm in a centered lateral profile.
-Lighting: {primary_light}, {secondary_fill}, {rim_light}.
-Focus: high-resolution skin texture and clearly defined deltoid contour; background rendered with shallow depth of field.
-Mood: {mood}.
+A photorealistic scene inside a {modern outpatient clinic with soft, diffused overhead lighting (≈4000K), neutral off-white walls, and clean medical equipment in the background|home living room with a clean sofa, neutral walls, soft ambient indoor lighting, and minimal household clutter|home bedroom with a neatly made bed, light-colored bedding, calm residential lighting, and a quiet, private atmosphere|home dining area with a simple chair beside a table, warm-neutral indoor lighting, and an uncluttered background|residential care setting with a family member nearby providing assistance, calm indoor lighting, and a supportive home environment}
+Subject: a seated {teenager|adult|adult|elderly} {Middle Eastern|African|Caucasian|South Asian|East Asian|Hispanic|Native American} {male|female} with {underweight|normal BMI|normal BMI|normal BMI|normal BMI|slightly overweight|obese}, {short hair|long hair|curly hair|bald|grey hair}, {smooth skin|wrinkled skin|dry skin}, {even tone|age spots|visible veins|freckles|blemishes}, and {no visible scars|healed injection scar|surgical scar near shoulder} wearing a {short-sleeved shirt|loose medical gown|dress|hospital gown} with the {left|right} sleeve fully removed, exposing the entire upper arm from shoulder to elbow.
+Pose: upright torso, arm relaxed and hanging naturally, hand resting on thigh; shoulder slightly forward to reveal the full lateral profile of the deltoid muscle.
+Camera: side view, {45|60|90|50}-degree angle, medium close-up (torso to forearm), shot on a Nikon D850, 85mm f/5.6, ISO 100. 
+Lighting: soft shadow-free clinical lighting with slight edge separation from a back-right rim light. 
+Focus: high-resolution skin texture and deltoid contour, shallow depth of field blurring the background. 

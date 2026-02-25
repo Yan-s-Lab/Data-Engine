@@ -5,6 +5,7 @@
 保留项：
 - `dataloader_norm_test.yaml`
 - `comfyui_generate_from_norm_yk001_prompt_canny.yaml`
+- `comfyui_generate_from_norm_yk001_prompt_only_managed.yaml`
 - `comfyui/*.json`（generate workflow 示例）
 - `arm_deltoid_template.txt`（generate prompt 模板）
 - `comfyui.env.example`
