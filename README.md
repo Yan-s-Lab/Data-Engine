@@ -30,6 +30,19 @@ pip install -r requirements.txt
 ./third_party/comfyui/comfyui_ctl.sh check
 ```
 
+```bash
+# Give your current account permission for changging volume of docker: data/comfyui
+sudo chown -R "$USER":"$USER" data/comfyui
+```
+
+```bash
+# Download example models, it can be quite of big. you can modify `.third_party/comfyui/models.yaml` based on yourself task.
+# For example, Comment out unused model combinations. 
+# For more details, please look at your ComfyUI UI Services: 127.0.0.1:8188
+./third_party/comfyui/download_models.sh  
+
+```
+
 4. Ensure dataset paths in your dataloader config exist before running:
 - `dataloader.image_dir`
 - `dataloader.label_dir` (if labels are required)
