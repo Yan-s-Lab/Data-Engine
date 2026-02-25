@@ -62,8 +62,8 @@ filter:
     prompt_score_mode: siglip_sigmoid
 
     # 正向任务语义（用于 prompt_score / prompt_margin）。
-    # 使用模板文件，避免手写文本与 generation 配置漂移。
-    prompt_template_file: ../../../configs/examples/arm_deltoid_template.txt
+    # Filter 侧使用短关键词句更稳（generation 可继续用长模板）。
+    prompt_text: "a realistic photo of a human upper arm with clearly visible deltoid muscle, complete upper arm anatomy, and natural body proportion"
 
     # 负向语义（用于 margin：正向得分 - 负向最大得分）。
     negative_prompts:
