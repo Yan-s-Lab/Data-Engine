@@ -10,19 +10,19 @@ This branch is the CLI-first rewrite scaffold.
 1. Normalize raw real data (DataLoader):
 ```bash
 python ingest/run_dataloader.py \
-  --config configs/examples/dataloader_norm_test.yaml
+  --config configs/examples/dataloader_norm_test_generation_yk002.yaml
 ```
 
-2. Generate synthetic data from normalized manifest (ComfyUI backend):
+2. Generate synthetic data from normalized manifest (ComfyUI backend, prompt-only):
 ```bash
 python synth/run_generate.py \
-  --config configs/examples/comfyui_generate_from_norm_yk001_prompt_canny.yaml
+  --config configs/examples/comfyui_generate_from_norm_yk001_prompt_only_managed.yaml
 ```
 
-3. Filter stage smoke test:
+3. Filter phase1 stage smoke test:
 ```bash
 python filter/run_filter.py \
-  --config artifacts/testfilter/configs/filter_compose.yaml
+  --config test/test-filters/configs/filter_compose.yaml
 ```
 
 ## OpenPose (local external clone)

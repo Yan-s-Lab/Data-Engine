@@ -1,6 +1,6 @@
 # Filter Quickstart（单模块）
 
-本文档只覆盖 `filter` 模块本身，不跑整条 `dataloader -> generate -> filter -> train -> eval` 流水线。
+本文档只覆盖 `filter` 模块本身。当前推荐链路是 `dataloader -> generate -> filter(phase1)`。
 
 ## 1. 入口关系（避免混淆）
 
@@ -22,25 +22,11 @@ python filter/run_filter.py --config <your_filter_config.yaml>
 
 ## 3. 推荐配置与命令
 
-### 3.1 PCS-CLIP（快速 smoke）
+当前保留并推荐的 filter 配置为 compose：
 
 ```bash
 python filter/run_filter.py \
-  --config artifacts/testfilter/configs/filter_pcs_clip.yaml
-```
-
-### 3.2 Staged CLIP（分层指标）
-
-```bash
-python filter/run_filter.py \
-  --config artifacts/testfilter/configs/filter_staged_clip.yaml
-```
-
-### 3.3 Compose（可组合策略）
-
-```bash
-python filter/run_filter.py \
-  --config artifacts/testfilter/configs/filter_compose.yaml
+  --config test/test-filters/configs/filter_compose.yaml
 ```
 
 ## 4. SigLIP2 + Phase1 路由（compose）
@@ -63,7 +49,7 @@ filter:
 ## 5. 输出工件
 
 `run.run_id` + `run.artifacts_root` 会决定输出目录，例如：
-`artifacts/testfilter/runs/testfilter_compose/filter/`
+`test/test-filters/runs/testfilter_compose/filter/`
 
 关键输出：
 - `manifest_in.jsonl`
@@ -94,6 +80,8 @@ filter:
 2. `run_dir/generate/mixed_manifest.jsonl`（默认自动启用）
 3. `manifest_builder`（当启用且满足触发条件）
 4. stub manifest（仅无输入时兜底）
+
+说明：`filter_pcs_clip.yaml` / `filter_staged_clip.yaml` 的旧路径（`artifacts/testfilter/configs/`）已不再作为当前文档路径。
 
 ## 7. 排查要点
 

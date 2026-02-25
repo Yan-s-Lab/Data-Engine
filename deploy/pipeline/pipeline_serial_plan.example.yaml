@@ -17,8 +17,8 @@ serial_plan:
     # - name: filter
     #   tasks:
     #     - name: phase1
-    #       config: artifacts/testfilter/configs/filter_pcs_clip.yaml
+    #       config: test/test-filters/configs/filter_compose.yaml
     #     - name: phase2
-    #       config: artifacts/testfilter/configs/filter_staged_clip.yaml
+    #       config: test/test-filters/configs/filter_compose.yaml
     #     - name: phase3
-    #       config: artifacts/testfilter/configs/filter_compose.yaml
+    #       config: test/test-filters/configs/filter_compose.yaml
