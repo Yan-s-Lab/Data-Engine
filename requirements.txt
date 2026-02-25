@@ -11,8 +11,6 @@ anyio==4.11.0
     #   httpx
     #   starlette
     #   watchfiles
-argcomplete==3.6.3
-    # via yq
 argon2-cffi==25.1.0
     # via minio
 argon2-cffi-bindings==25.1.0
@@ -97,7 +95,6 @@ pyyaml==6.0.3
     # via
     #   huggingface-hub
     #   uvicorn
-    #   yq
 requests==2.32.5
     # via dataengine
 shellingham==1.5.4
@@ -112,8 +109,6 @@ starlette==0.50.0
     # via fastapi
 tomli==2.3.0 ; python_full_version < '3.11'
     # via alembic
-tomlkit==0.14.0
-    # via yq
 tqdm==4.67.1
     # via huggingface-hub
 typer-slim==0.20.0
@@ -147,7 +142,3 @@ watchfiles==1.1.1
     # via uvicorn
 websockets==15.0.1
     # via uvicorn
-xmltodict==1.0.4
-    # via yq
-yq==3.4.3
-    # via dataengine

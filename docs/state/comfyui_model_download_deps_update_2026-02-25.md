@@ -1,5 +1,8 @@
 # ComfyUI Model Download Dependencies Update (2026-02-25)
 
+> Superseded on 2026-02-25 by `comfyui_model_download_jq_free_fix_2026-02-25.md`:
+> downloader no longer depends on `yq/jq`; parser moved to `python3 + pyyaml`.
+
 ## Scope
 - Ensure `third_party/comfyui/download_models.sh` required CLI tools are covered by project Python dependencies.
 
