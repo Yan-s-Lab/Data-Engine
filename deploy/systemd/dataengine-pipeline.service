@@ -1,0 +1,17 @@
+[Unit]
+Description=DataEngine Managed Pipeline (Docker Compose)
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/yan/StudioSpace/DataEngine
+ExecStart=/usr/bin/docker compose --env-file deploy/pipeline/.env -f deploy/pipeline/docker-compose.pipeline.yml up --build --remove-orphans
+ExecStop=/usr/bin/docker compose --env-file deploy/pipeline/.env -f deploy/pipeline/docker-compose.pipeline.yml down
+Restart=always
+RestartSec=10
+TimeoutStopSec=180
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

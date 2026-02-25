@@ -92,3 +92,61 @@ cd ../..
 ```bash
 bash third_party/run_openpose_to_control.sh --image /abs/path/to/image.png
 ```
+
+## 7. 长任务稳定运行（容器 + systemd）
+
+目标：避免 SSH 断开/本地锁屏导致 pipeline 中断，并在机器重启后自动恢复。
+
+### 7.1 托管版 pipeline runner（支持锁/PID/SIGTERM/续跑）
+
+新增入口：
+```bash
+python pipelines/run_managed_pipeline.py --config <your_config.yaml>
+```
+
+特性：
+- 单实例锁：`<run_dir>/pipeline/managed.lock`
+- PID 文件：`<run_dir>/pipeline/managed.pid`
+- 仅在收到 `SIGTERM/SIGINT` 时主动退出（忽略 `SIGHUP`）
+- 断点续跑：默认开启 `pipeline.resume_from_artifacts=true`，已有阶段产物会自动跳过
+
+可选配置：
+```yaml
+pipeline:
+  resume_from_artifacts: true
+  lock_file: /abs/path/to/managed.lock   # 可选，默认 run_dir/pipeline/managed.lock
+  pid_file: /abs/path/to/managed.pid     # 可选，默认 run_dir/pipeline/managed.pid
+```
+
+### 7.2 容器化运行（docker compose）
+
+1. 复制环境变量：
+```bash
+cp deploy/pipeline/.env.example deploy/pipeline/.env
+```
+2. 根据需要修改 `deploy/pipeline/.env` 里的 `PIPELINE_CONFIG`。
+3. 启动：
+```bash
+docker compose --env-file deploy/pipeline/.env -f deploy/pipeline/docker-compose.pipeline.yml up -d --build
+```
+4. 查看日志（固定落盘）：
+```bash
+tail -f artifacts/logs/managed_pipeline.log
+```
+
+### 7.3 主机重启后自动恢复（systemd）
+
+安装并启用服务：
+```bash
+bash deploy/systemd/install_pipeline_service.sh
+```
+
+服务文件：
+- `deploy/systemd/dataengine-pipeline.service`
+
+常用命令：
+```bash
+sudo systemctl status dataengine-pipeline.service
+sudo systemctl restart dataengine-pipeline.service
+sudo systemctl stop dataengine-pipeline.service
+```
