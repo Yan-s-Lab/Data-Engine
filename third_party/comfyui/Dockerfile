@@ -1,4 +1,5 @@
 FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+# FROM nvidia/cuda:12.1.1-runtime-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -21,8 +22,15 @@ ARG COMFYUI_REPO=https://github.com/comfyanonymous/ComfyUI.git
 ARG COMFYUI_REF=master
 RUN git clone --depth=1 --branch "${COMFYUI_REF}" "${COMFYUI_REPO}" .
 
+# For old version
+# RUN python -m pip install --upgrade pip && \
+#     python -m pip install torch==2.3.0+cu121 torchvision==0.18.0+cu121 torchaudio==2.3.0 \
+#         --index-url https://download.pytorch.org/whl/cu121 && \
+#     python -m pip install -r requirements.txt
+
+# For new version
 RUN python -m pip install --upgrade pip && \
-    python -m pip install torch==2.3.0+cu121 torchvision==0.18.0+cu121 torchaudio==2.3.0 \
+    python -m pip install torch==2.4.1+cu121 torchvision==0.19.1+cu121 torchaudio==2.4.1+cu121 \
         --index-url https://download.pytorch.org/whl/cu121 && \
     python -m pip install -r requirements.txt
 
