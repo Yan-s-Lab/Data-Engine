@@ -377,6 +377,62 @@ def _resolve_prompt_score_mode(clip_cfg: Dict[str, Any], model_id: str) -> str:
     return "cosine"
 
 
+def _resolve_filter_prompt_text(
+    filter_cfg: Dict[str, Any],
+    *,
+    config_path: Path,
+) -> str:
+    clip_cfg = filter_cfg.get("clip")
+    if not isinstance(clip_cfg, dict):
+        return ""
+
+    prompt_text = str(clip_cfg.get("prompt_text", "")).strip()
+    if prompt_text:
+        return "clip.prompt_text"
+
+    template_file = str(clip_cfg.get("prompt_template_file", "")).strip()
+    if template_file:
+        path = Path(template_file)
+        if not path.is_absolute():
+            path = (config_path.parent / path).resolve()
+        clip_cfg["prompt_text"] = path.read_text(encoding="utf-8").strip()
+        return "clip.prompt_template_file"
+
+    generate_cfg_path = str(clip_cfg.get("prompt_from_generate_config", "")).strip()
+    if not generate_cfg_path:
+        return ""
+    gen_path = Path(generate_cfg_path)
+    if not gen_path.is_absolute():
+        gen_path = (config_path.parent / gen_path).resolve()
+    gen_cfg = load_config(gen_path)
+    prompt_cfg = (
+        gen_cfg.get("generate", {})
+        .get("comfyui", {})
+        .get("prompt", {})
+    )
+    if not isinstance(prompt_cfg, dict):
+        return ""
+
+    gen_template_file = str(prompt_cfg.get("template_file", "")).strip()
+    if gen_template_file:
+        p = Path(gen_template_file)
+        if not p.is_absolute():
+            p = (gen_path.parent / p).resolve()
+        clip_cfg["prompt_text"] = p.read_text(encoding="utf-8").strip()
+        return "clip.prompt_from_generate_config.template_file"
+
+    gen_text_template = prompt_cfg.get("text_template")
+    if isinstance(gen_text_template, str) and gen_text_template.strip():
+        clip_cfg["prompt_text"] = gen_text_template.strip()
+        return "clip.prompt_from_generate_config.text_template"
+
+    gen_text = str(prompt_cfg.get("text", "")).strip()
+    if gen_text:
+        clip_cfg["prompt_text"] = gen_text
+        return "clip.prompt_from_generate_config.text"
+    return ""
+
+
 def _is_real_guided_synth(row: Dict[str, Any], phase1_cfg: Dict[str, Any]) -> bool:
     if str(row.get("source", "")) != "synthetic":
         return False
@@ -946,6 +1002,7 @@ def run_composed_clip_filter(
         "keep_real_always": keep_real_always,
         "strategy": strategy,
         "prompt_text_present": bool(prompt_text.strip()),
+        "prompt_text_source": str(clip_cfg.get("prompt_text_source", "")),
         "prompt_score_mode": prompt_score_mode,
         "negative_prompt_count": len(neg_prompts),
         "stages_enabled": stages_enabled,
@@ -1284,6 +1341,7 @@ def run_staged_clip_filter(
         "keep_real_always": keep_real_always,
         "strategy": strategy,
         "prompt_text_present": bool(prompt_text.strip()),
+        "prompt_text_source": str(clip_cfg.get("prompt_text_source", "")),
         "prompt_score_mode": prompt_score_mode,
         "negative_prompt_count": len(neg_prompts),
         "tri_gate": {
@@ -1337,9 +1395,15 @@ def main() -> None:
     parser.add_argument("--config", required=True)
     args = parser.parse_args()
 
-    config = load_config(Path(args.config))
+    config_path = Path(args.config)
+    config = load_config(config_path)
     run_dir = resolve_run_dir(config)
     filter_cfg = config.get("filter", {})
+    if isinstance(filter_cfg, dict):
+        prompt_source = _resolve_filter_prompt_text(filter_cfg=filter_cfg, config_path=config_path)
+        clip_cfg = filter_cfg.get("clip")
+        if prompt_source and isinstance(clip_cfg, dict):
+            clip_cfg["prompt_text_source"] = prompt_source
 
     input_manifest = filter_cfg.get("input_manifest")
     input_manifest_path = Path(str(input_manifest)) if input_manifest else None
