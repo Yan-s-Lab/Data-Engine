@@ -605,6 +605,11 @@ def _resolve_gate_threshold(
     return quantile(vals, q)
 
 
+def _resolve_row_prompt_text(row: Dict[str, Any], prompt_field: str, default_prompt: str) -> str:
+    row_prompt = str(row.get(prompt_field, "")).strip() if prompt_field else ""
+    return row_prompt or default_prompt
+
+
 def run_composed_clip_filter(
     rows: List[Dict[str, Any]],
     filter_dir: Path,
@@ -626,6 +631,7 @@ def run_composed_clip_filter(
     neg_prompts = [str(x) for x in clip_cfg.get("negative_prompts", [])]
     cache_path = Path(str(clip_cfg.get("embed_cache_path", filter_dir / "clip_embed_cache.json")))
     phase1_cfg = dict(filter_cfg.get("phase1_semantic", {}))
+    prompt_field = str(phase1_cfg.get("prompt_field", "effective_prompt_text"))
 
     stages_enabled = _stage_enabled_map(filter_cfg)
     keep_real_always = bool(filter_cfg.get("keep_real_always", True))
@@ -682,11 +688,13 @@ def run_composed_clip_filter(
         }
         for sid in sid_list
     }
-    paired_scores: Dict[str, Dict[str, float]] = {
+    paired_scores: Dict[str, Dict[str, Any]] = {
         sid: {
             "s_semantic_pair_raw": 0.0,
             "s_semantic_pair": 0.0,
             "s_semantic_pair_hit": 0.0,
+            "anchor_sid_resolved": "",
+            "pair_miss_reason": "",
         }
         for sid in sid_list
     }
@@ -732,7 +740,6 @@ def run_composed_clip_filter(
         }
 
     if stages_enabled.get("prompt_score", True):
-        prompt_field = str(phase1_cfg.get("prompt_field", "effective_prompt_text"))
         prompt_scores = compute_prompt_scores(
             rows=rows,
             image_embeddings=embeddings,
@@ -742,7 +749,6 @@ def run_composed_clip_filter(
             prompt_field=prompt_field,
         )
     elif bool(phase1_cfg.get("enabled", False)):
-        prompt_field = str(phase1_cfg.get("prompt_field", "effective_prompt_text"))
         prompt_scores = compute_prompt_scores(
             rows=rows,
             image_embeddings=embeddings,
@@ -893,7 +899,27 @@ def run_composed_clip_filter(
             },
         )
 
+    gate_specs: List[Dict[str, Any]] = []
+    if strategy in {"tri_gate", "tri_gate_plus_weighted"} and isinstance(gates_cfg, list):
+        for g in gates_cfg:
+            if not isinstance(g, dict):
+                continue
+            metric_name = str(g.get("metric", "")).strip()
+            if not metric_name:
+                continue
+            op = _as_op(str(g.get("op", ">=")))
+            threshold = _resolve_gate_threshold(g, metric_name, calib_rows, metric_value)
+            gate_specs.append(
+                {
+                    "metric": metric_name,
+                    "op": op,
+                    "threshold": float(threshold),
+                    "buffer": float(g.get("buffer", 0.0)),
+                }
+            )
+
     score_rows: List[Dict[str, Any]] = []
+    phase1_compare_rows: List[Dict[str, Any]] = []
     for row in rows:
         sample_id = str(row.get("sample_id", "unknown"))
         source = str(row.get("source", ""))
@@ -925,24 +951,22 @@ def run_composed_clip_filter(
 
         decision_basis = "weighted_policy"
         gate_fail = ""
-        if strategy in {"tri_gate", "tri_gate_plus_weighted"} and isinstance(gates_cfg, list) and gates_cfg:
+        gate_checks: List[str] = []
+        if strategy in {"tri_gate", "tri_gate_plus_weighted"} and gate_specs:
             all_pass = True
             near = False
             gate_fail_reasons: List[str] = []
-            for g in gates_cfg:
-                if not isinstance(g, dict):
-                    continue
-                metric_name = str(g.get("metric", "")).strip()
-                if not metric_name:
-                    continue
-                op = _as_op(str(g.get("op", ">=")))
-                threshold = _resolve_gate_threshold(g, metric_name, calib_rows, metric_value)
+            for g in gate_specs:
+                metric_name = str(g["metric"])
+                op = str(g["op"])
+                threshold = float(g["threshold"])
                 mv = metric_value(metric_name, row)
                 passed = _eval_gate(mv, op, threshold)
+                gate_checks.append(f"{metric_name} {mv:.6f} {op} {threshold:.6f} => {'pass' if passed else 'fail'}")
                 if not passed:
                     all_pass = False
                     gate_fail_reasons.append(metric_name)
-                    buf = float(g.get("buffer", 0.0))
+                    buf = float(g["buffer"])
                     if op in {">=", ">"}:
                         near = near or (mv >= threshold - buf)
                     elif op in {"<=", "<"}:
@@ -971,6 +995,47 @@ def run_composed_clip_filter(
             else:
                 decision_basis = "keep_real_always"
             gate_fail = ""
+
+        active_prompt_text = _resolve_row_prompt_text(row=row, prompt_field=prompt_field, default_prompt=prompt_text)
+        pair_info = paired_scores.get(sample_id, {})
+        pair_anchor_sid = str(pair_info.get("anchor_sid_resolved", "")).strip()
+        pair_miss_reason = str(pair_info.get("pair_miss_reason", "")).strip()
+        if s_phase1_semantic_source == "semantic_pair":
+            compare_type = "image_vs_anchor_image"
+            compare_target = pair_anchor_sid
+            compare_remark = "guided synthetic matched anchor"
+        elif s_phase1_semantic_source == "prompt_score":
+            compare_type = "image_vs_prompt_text"
+            compare_target = "effective_prompt_text"
+            compare_remark = "prompt-only synthetic routed to prompt score"
+        else:
+            compare_type = "image_vs_real_anchor_set"
+            compare_target = "real_anchor_pool"
+            compare_remark = "fallback to semantic anchor"
+            if pair_miss_reason:
+                compare_remark = f"{compare_remark}; {pair_miss_reason}"
+
+        phase1_compare_rows.append(
+            {
+                "sample_id": sample_id,
+                "source": source,
+                "decision": decision,
+                "phase1_source": s_phase1_semantic_source,
+                "phase1_score": round(s_phase1_semantic, 6),
+                "compare_type": compare_type,
+                "compare_target": compare_target,
+                "anchor_real_sample_id": pair_anchor_sid or str(row.get("anchor_real_sample_id", "")),
+                "pair_hit": float(pair_info.get("s_semantic_pair_hit", 0.0)),
+                "pair_miss_reason": pair_miss_reason,
+                "s_semantic_pair": round(s_semantic_pair, 6),
+                "s_prompt": round(s_prompt, 6),
+                "s_semantic_anchor": round(s_semantic_anchor, 6),
+                "prompt_text_used": active_prompt_text,
+                "gate_fail": gate_fail,
+                "gate_checks": gate_checks,
+                "remark": compare_remark,
+            }
+        )
 
         score_rows.append(
             {
@@ -1009,10 +1074,14 @@ def run_composed_clip_filter(
                 "decision": decision,
                 "decision_basis": decision_basis,
                 "gate_fail": gate_fail,
+                "gate_checks": gate_checks,
                 "clip_model_id": model_id,
                 "clip_device": runtime.device,
             }
         )
+
+    phase1_log_path = filter_dir / "phase1_compare_log.jsonl"
+    write_jsonl(phase1_log_path, phase1_compare_rows)
 
     report_extra: Dict[str, Any] = {
         "clip_model_id": model_id,
@@ -1044,7 +1113,9 @@ def run_composed_clip_filter(
         "phase1_semantic": {
             **phase1_state,
             "paired": phase1_pair_state,
-            "prompt_field": str(phase1_cfg.get("prompt_field", "effective_prompt_text")),
+            "prompt_field": prompt_field,
+            "compare_log_path": str(phase1_log_path),
+            "compare_log_count": len(phase1_compare_rows),
         },
         "anchor_ood": {
             "enabled": bool(ood_state.get("enabled", False)),

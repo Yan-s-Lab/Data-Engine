@@ -71,7 +71,13 @@ def image_embedding(image_path: Path, runtime: ClipRuntime) -> Any:
 
 
 def text_embedding(text: str, runtime: ClipRuntime) -> Any:
-    inputs = runtime.processor(text=[text], return_tensors="pt", padding=True)
+    inputs = runtime.processor(
+        text=[text],
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=_max_text_length(runtime),
+    )
     inputs = {k: v.to(runtime.device) for k, v in inputs.items()}
     with runtime.torch_mod.no_grad():
         feat = _extract_feature_tensor(runtime.model.get_text_features(**inputs))
@@ -84,7 +90,14 @@ def cosine_similarity(vec_a: Any, vec_b: Any) -> float:
 
 
 def image_text_logits(images: Any, texts: List[str], runtime: ClipRuntime) -> Any:
-    inputs = runtime.processor(text=texts, images=images, return_tensors="pt", padding=True)
+    inputs = runtime.processor(
+        text=texts,
+        images=images,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=_max_text_length(runtime),
+    )
     inputs = {k: v.to(runtime.device) for k, v in inputs.items()}
     with runtime.torch_mod.no_grad():
         outputs = runtime.model(**inputs)
@@ -109,6 +122,17 @@ def _extract_feature_tensor(feat: Any) -> Any:
         "unable to extract feature tensor from model output; "
         "expected tensor-like output or one of image_embeds/text_embeds/pooler_output."
     )
+
+
+def _max_text_length(runtime: ClipRuntime) -> int:
+    text_cfg = getattr(getattr(runtime.model, "config", None), "text_config", None)
+    max_len = getattr(text_cfg, "max_position_embeddings", None)
+    if isinstance(max_len, int) and max_len > 0:
+        return max_len
+    tok_max = getattr(getattr(runtime.processor, "tokenizer", None), "model_max_length", None)
+    if isinstance(tok_max, int) and 0 < tok_max < 100000:
+        return tok_max
+    return 77
 
 
 def _l2_normalize(feat: Any, runtime: ClipRuntime) -> Any:

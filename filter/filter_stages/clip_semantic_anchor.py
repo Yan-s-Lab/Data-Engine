@@ -114,7 +114,7 @@ def compute_paired_anchor_semantic_scores(
     rows: List[Dict[str, Any]],
     image_embeddings: Dict[str, Any],
     cfg: Dict[str, Any],
-) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Any]]:
+) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
     """
     Pair-wise semantic score for real-guided synthetic samples:
       s_pair(x) = Sim(E(x), E(anchor(x)))
@@ -122,7 +122,7 @@ def compute_paired_anchor_semantic_scores(
     """
     anchor_sid_fields = [str(x) for x in cfg.get("anchor_sid_fields", ["anchor_real_sample_id"])]
 
-    out: Dict[str, Dict[str, float]] = {}
+    out: Dict[str, Dict[str, Any]] = {}
     hit = 0
     miss = 0
 
@@ -134,6 +134,8 @@ def compute_paired_anchor_semantic_scores(
                 "s_semantic_pair_raw": 0.0,
                 "s_semantic_pair": 0.0,
                 "s_semantic_pair_hit": 0.0,
+                "anchor_sid_resolved": "",
+                "pair_miss_reason": "sample_embedding_missing",
             }
             miss += 1
             continue
@@ -149,6 +151,8 @@ def compute_paired_anchor_semantic_scores(
                 "s_semantic_pair_raw": 0.0,
                 "s_semantic_pair": 0.0,
                 "s_semantic_pair_hit": 0.0,
+                "anchor_sid_resolved": "",
+                "pair_miss_reason": "anchor_sid_missing",
             }
             miss += 1
             continue
@@ -159,6 +163,8 @@ def compute_paired_anchor_semantic_scores(
                 "s_semantic_pair_raw": 0.0,
                 "s_semantic_pair": 0.0,
                 "s_semantic_pair_hit": 0.0,
+                "anchor_sid_resolved": anchor_sid,
+                "pair_miss_reason": "anchor_embedding_missing",
             }
             miss += 1
             continue
@@ -168,6 +174,8 @@ def compute_paired_anchor_semantic_scores(
             "s_semantic_pair_raw": s_raw,
             "s_semantic_pair": max(0.0, min(1.0, (s_raw + 1.0) * 0.5)),
             "s_semantic_pair_hit": 1.0,
+            "anchor_sid_resolved": anchor_sid,
+            "pair_miss_reason": "",
         }
         hit += 1
 
