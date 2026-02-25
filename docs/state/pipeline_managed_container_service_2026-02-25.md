@@ -32,3 +32,9 @@ python -m unittest discover -s test -p 'test_managed_pipeline_smoke.py' -v
 ## Notes
 - 容器层通过 `restart: always` 保证容器退出后自动重启。
 - 主机重启场景通过 `systemd` 服务自动启动 compose，恢复 pipeline。
+
+## Follow-up (2026-02-25)
+- 优化 pipeline 容器构建性能：
+  - 新增仓库根 `.dockerignore`，排除大体积目录（`data/`, `artifacts/`, `.git/` 等）进入 build context。
+  - 调整 `deploy/pipeline/Dockerfile`，移除 `COPY . /workspace`，仅复制 `pipeline_entrypoint.sh`。
+- 结果：`docker compose build` 的 build context 从 GB 级降到 KB 级（实测约 `4.00kB`）。

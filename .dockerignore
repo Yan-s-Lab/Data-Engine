@@ -1,0 +1,16 @@
+.git
+.venv
+.vscode
+.temp
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Large runtime artifacts/data are mounted as volumes; do not send to build context
+artifacts/
+data/
+third_party/openpose/
+
+# Local test payloads
+test/
