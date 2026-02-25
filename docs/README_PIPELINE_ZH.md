@@ -48,19 +48,19 @@
 ## 4. 分文档索引（前 3 个 kernel）
 
 - DataLoader（norm）：
-  [docs/kernels/dataloader_norm.md](/home/yan/StudioSpace/DataEngine/docs/kernels/dataloader_norm.md)
+  [docs/kernels/dataloader_norm.md](./kernels/dataloader_norm.md)
 - Control Generation（ComfyUI）：
-  [docs/kernels/control_generation.md](/home/yan/StudioSpace/DataEngine/docs/kernels/control_generation.md)
+  [docs/kernels/control_generation.md](./kernels/control_generation.md)
 - Filter（phase1）：
-  [docs/kernels/filter_phase1.md](/home/yan/StudioSpace/DataEngine/docs/kernels/filter_phase1.md)
+  [docs/kernels/filter_phase1.md](./kernels/filter_phase1.md)
 
 兼容入口（历史名称）：
-- [docs/filter_quickstart.md](/home/yan/StudioSpace/DataEngine/docs/filter_quickstart.md)
+- [docs/filter_quickstart.md](./filter_quickstart.md)
 
 ## 5. 运行前准备（入口）
 
 - 快速准备清单见：
-  [README.md](/home/yan/StudioSpace/DataEngine/README.md)
+  [README.md](./README.md)
   `Prepare Phase (before any run scripts)` 小节。
 - 若目标是跑到 generation，请先确保：
   - Python 依赖已安装（`requirements.txt`）
@@ -76,7 +76,84 @@
 `deploy/pipeline/.env` 变量优先级：
 `PIPELINE_SERIAL_PLAN` > `PIPELINE_CONFIG_LIST_FILE/PIPELINE_CONFIGS` > `PIPELINE_CONFIG`
 
-## 7. 文档边界规则
+## 7. Docker 容器编排 Demo（启动 / 终止 / 重启）
+
+在仓库根目录执行以下命令。
+
+1. 准备配置（首次）
+
+```bash
+cp deploy/pipeline/.env.example deploy/pipeline/.env
+```
+
+按需编辑 `deploy/pipeline/.env`（三选一）：
+- 单配置：设置 `PIPELINE_CONFIG=...`
+- 多配置队列：设置 `PIPELINE_CONFIGS=cfg1,cfg2,...` 或 `PIPELINE_CONFIG_LIST_FILE=...`
+- 串行分阶段计划：设置 `PIPELINE_SERIAL_PLAN=deploy/pipeline/pipeline_serial_plan.example.yaml`
+
+2. 启动（前台）
+
+```bash
+docker compose --env-file deploy/pipeline/.env \
+  -f deploy/pipeline/docker-compose.pipeline.yml \
+  up --build --remove-orphans
+```
+
+3. 启动（后台）
+
+```bash
+docker compose --env-file deploy/pipeline/.env \
+  -f deploy/pipeline/docker-compose.pipeline.yml \
+  up --build -d --remove-orphans
+```
+
+4. 查看状态与日志
+
+```bash
+docker compose --env-file deploy/pipeline/.env \
+  -f deploy/pipeline/docker-compose.pipeline.yml \
+  ps
+```
+
+```bash
+docker compose --env-file deploy/pipeline/.env \
+  -f deploy/pipeline/docker-compose.pipeline.yml \
+  logs -f --tail 200
+```
+
+5. 终止（停止并移除容器）
+
+```bash
+docker compose --env-file deploy/pipeline/.env \
+  -f deploy/pipeline/docker-compose.pipeline.yml \
+  down
+```
+
+6. 重启（仅重启容器进程）
+
+```bash
+docker compose --env-file deploy/pipeline/.env \
+  -f deploy/pipeline/docker-compose.pipeline.yml \
+  restart
+```
+
+7. 重启（按最新配置重建并启动）
+
+```bash
+docker compose --env-file deploy/pipeline/.env \
+  -f deploy/pipeline/docker-compose.pipeline.yml \
+  up --build -d --force-recreate --remove-orphans
+```
+
+可选：若已安装 systemd 服务（`deploy/systemd/dataengine-pipeline.service`），可用：
+
+```bash
+sudo systemctl restart dataengine-pipeline.service
+sudo systemctl stop dataengine-pipeline.service
+sudo systemctl start dataengine-pipeline.service
+```
+
+## 8. 文档边界规则
 
 - 主文档：只放架构、边界、索引，不展开参数细节。
 - 分文档：只放对应 kernel 的技术细节、脚本运行、配置说明、产物和排查。
