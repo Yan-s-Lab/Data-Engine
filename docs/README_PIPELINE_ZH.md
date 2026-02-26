@@ -30,6 +30,7 @@
 3. `Filter (phase1 now)`
 - 输入：`mixed_manifest.jsonl`（推荐）或显式 manifest
 - 输出：`filter_scores.jsonl` + `accept/reject/uncertain`
+- 约束：当前仅支持 `filter.mode=compose`（phase1 v1 极简路径）
 
 4. `Annotation <-> HITL`（目标态，未并入当前主路径）
 
@@ -76,6 +77,23 @@
 `deploy/pipeline/.env` 变量优先级：
 `PIPELINE_SERIAL_PLAN` > `PIPELINE_CONFIG_LIST_FILE/PIPELINE_CONFIGS` > `PIPELINE_CONFIG`
 
+### 6.1 仅运行 Filter phase1（推荐最简）
+
+若只想跑 filter，请在配置中显式设置：
+
+```yaml
+pipeline:
+  steps: [filter]
+```
+
+并保证 `filter.mode=compose`。
+
+可直接使用 smoke config：
+
+```bash
+python filter/run_filter.py --config test/test-filters/configs/filter_compose.yaml
+```
+
 ## 7. Docker 容器编排 Demo（启动 / 终止 / 重启）
 
 在仓库根目录执行以下命令。
@@ -98,6 +116,11 @@ docker compose --env-file deploy/pipeline/.env \
   -f deploy/pipeline/docker-compose.pipeline.yml \
   up --build --remove-orphans
 ```
+
+仅跑 filter 时，建议在 `deploy/pipeline/.env` 指向一个含 `pipeline.steps: [filter]` 的配置文件：
+- `PIPELINE_CONFIG=...`
+或使用串行计划：
+- `PIPELINE_SERIAL_PLAN=deploy/pipeline/pipeline_serial_plan.example-yk003.yaml`
 
 3. 启动（后台）
 

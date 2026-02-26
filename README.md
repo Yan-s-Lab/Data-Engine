@@ -75,6 +75,16 @@ python filter/run_filter.py \
   --config test/test-filters/configs/filter_compose.yaml
 ```
 
+Current constraint:
+- Filter is phase1 minimal path only.
+- `filter/run_filter.py` supports `filter.mode=compose` only.
+- `stub/pcs_clip/staged_clip` are removed.
+
+Managed pipeline / Docker note:
+- If you run filter via `pipelines/run_managed_pipeline.py` or `deploy/pipeline/docker-compose.pipeline.yml`,
+  set `pipeline.steps: [filter]` in your config (or in serial plan task config), otherwise default steps include
+  `dataloader/generate/train/eval`.
+
 ## OpenPose (local external clone)
 
 `third_party/openpose/` is intentionally not tracked by this repository.

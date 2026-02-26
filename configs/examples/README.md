@@ -15,4 +15,4 @@
 
 说明：
 - `dataloader_norm_test.yaml` 与 `comfyui_generate_from_norm_yk001_prompt_canny.yaml` 保留用于历史兼容，不再作为主文档推荐入口。
-- Filter 当前示例配置位于 `test/test-filters/configs/filter_compose.yaml`，入口见 `docs/README_PIPELINE_ZH.md`。
+- Filter 当前示例配置位于 `test/test-filters/configs/filter_compose.yaml`，且仅支持 `filter.mode=compose`，入口见 `docs/README_PIPELINE_ZH.md`。
