@@ -38,6 +38,7 @@
 - `s_anchor = sim(anchor_image, synthetic_image)`（仅 guided synthetic 使用；由 `semantic_pair` 提供）
 - `s_prompt`（所有样本都会计算）：
   - `prompt_metric=score`：`sim(prompt_text, synthetic_image)`
+  - `prompt_metric=raw_cosine`：`raw cosine in [-1, 1]`（由 cosine 映射值反算）
   - `prompt_metric=margin_norm`：`norm( score(pos_prompt) - max(score(neg_prompts)) )`
 
 3. 一个统一总分
@@ -47,6 +48,7 @@
 
 4. 一个分桶策略
 - guided 最小资格：`s_anchor >= guided_min_anchor && s_prompt > guided_min_prompt`
+- 可选：`guided_min_prompt_from_real_quantile=q05|q10|...` 时，用 real 样本 `s_prompt` 分位数覆盖 `guided_min_prompt`
 - 在资格集合内按 `s_final` 排序取 Top-K 为 `accept`
 - 其余样本进入 `uncertain`（Expert 审核池）
 - `reject=0`（仅当 `policy.ranking_review.hard_reject=true` 时允许 reject）

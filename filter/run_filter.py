@@ -71,7 +71,30 @@ def _apply_topk_review_selection(
     review_rest = bool(ranking_cfg.get("review_rest", True))
     guided_min_anchor = float(ranking_cfg.get("guided_min_anchor", 0.0))
     guided_min_prompt = float(ranking_cfg.get("guided_min_prompt", 0.0))
+    guided_min_prompt_from_real_quantile = str(ranking_cfg.get("guided_min_prompt_from_real_quantile", "")).strip().lower()
     hard_reject = bool(ranking_cfg.get("hard_reject", False))
+
+    if guided_min_prompt_from_real_quantile:
+        real_scores = sorted(
+            float(r.get("s_prompt", 0.0))
+            for r in score_rows
+            if str(r.get("source", "")) == "real"
+        )
+        if real_scores:
+            q_map = {
+                "q05": 0.05,
+                "q10": 0.10,
+                "q25": 0.25,
+                "q50": 0.50,
+                "q75": 0.75,
+                "q90": 0.90,
+                "q95": 0.95,
+            }
+            q = q_map.get(guided_min_prompt_from_real_quantile)
+            if q is not None:
+                idx = int(round((len(real_scores) - 1) * q))
+                idx = max(0, min(len(real_scores) - 1, idx))
+                guided_min_prompt = float(real_scores[idx])
 
     candidates = [r for r in score_rows if str(r.get("source", "")) == target_source]
     total = len(candidates)
@@ -152,6 +175,7 @@ def _apply_topk_review_selection(
         "review_rest": review_rest,
         "guided_min_anchor": guided_min_anchor,
         "guided_min_prompt": guided_min_prompt,
+        "guided_min_prompt_from_real_quantile": guided_min_prompt_from_real_quantile,
         "hard_reject": hard_reject,
         "ineligible_count": len(ineligible_rows),
         "accept_after_selection": accept_count,
@@ -300,11 +324,18 @@ def build_phase1_semantic_scores(
     guided_count = 0
     prompt_only_count = 0
     anchor_hit_count = 0
+    prompt_metric = str(phase1_cfg.get("prompt_metric", "score")).strip().lower()
 
     for row in rows:
         sid = str(row.get("sample_id", ""))
         is_guided = _is_real_guided_synth(row=row, phase1_cfg=phase1_cfg)
-        s_prompt = max(0.0, min(1.0, float(prompt_scores.get(sid, 0.0))))
+        prompt_raw = float(prompt_scores.get(sid, 0.0))
+        if prompt_metric in {"raw_cosine", "score_raw_cosine"}:
+            s_prompt = max(-1.0, min(1.0, prompt_raw))
+        elif prompt_metric == "margin":
+            s_prompt = prompt_raw
+        else:
+            s_prompt = max(0.0, min(1.0, prompt_raw))
         pair = paired_scores.get(sid, {})
         pair_hit = float(pair.get("s_semantic_pair_hit", 0.0)) > 0.0
         s_anchor = max(0.0, min(1.0, float(pair.get("s_semantic_pair", 0.0)))) if pair_hit else 0.0
@@ -336,6 +367,7 @@ def build_phase1_semantic_scores(
     return out, {
         "enabled": True,
         "phase1_version": "v1_minimal",
+        "prompt_metric": prompt_metric,
         "guided_w_anchor": guided_w_anchor,
         "guided_w_prompt": guided_w_prompt,
         "guided_synth_count": guided_count,
@@ -398,6 +430,16 @@ def run_composed_clip_filter(
         )
         key = "s_prompt_margin_norm" if prompt_metric == "margin_norm" else "s_prompt_margin"
         prompt_scores = {sid: float(v.get(key, 0.0)) for sid, v in margin_scores.items()}
+    elif prompt_metric in {"raw_cosine", "score_raw_cosine"}:
+        mapped = compute_prompt_scores(
+            rows=rows,
+            image_embeddings=embeddings,
+            runtime=runtime,
+            prompt_text=prompt_text,
+            prompt_score_mode="cosine",
+            prompt_field=prompt_field,
+        )
+        prompt_scores = {sid: (float(v) * 2.0) - 1.0 for sid, v in mapped.items()}
     else:
         prompt_scores = compute_prompt_scores(
             rows=rows,
@@ -476,10 +518,27 @@ def run_composed_clip_filter(
             **phase1_state,
             "paired": phase1_pair_state,
             "prompt_field": prompt_field,
-            "prompt_metric": prompt_metric,
         },
         **cache_stats,
     }
+    real_prompt_values = sorted(
+        float(prompt_scores.get(str(r.get("sample_id", "")), 0.0))
+        for r in rows
+        if str(r.get("source", "")) == "real"
+    )
+    if real_prompt_values:
+        def _pick_q(vals: List[float], q: float) -> float:
+            idx = int(round((len(vals) - 1) * q))
+            idx = max(0, min(len(vals) - 1, idx))
+            return float(vals[idx])
+        report_extra["phase1_semantic"]["prompt_real_quantiles"] = {
+            "count": len(real_prompt_values),
+            "q05": round(_pick_q(real_prompt_values, 0.05), 6),
+            "q10": round(_pick_q(real_prompt_values, 0.10), 6),
+            "q50": round(_pick_q(real_prompt_values, 0.50), 6),
+            "q90": round(_pick_q(real_prompt_values, 0.90), 6),
+            "q95": round(_pick_q(real_prompt_values, 0.95), 6),
+        }
     return score_rows, report_extra
 
 
