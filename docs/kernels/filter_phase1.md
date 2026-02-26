@@ -25,7 +25,7 @@
 
 - `test/test-filters/configs/filter_compose.yaml`
 
-## 4. 复杂配置逻辑（重点）
+## 4. Phase1 v1（极简）
 
 1. 输入清单优先级
 - `filter.input_manifest`（显式）
@@ -33,20 +33,20 @@
 - `manifest_builder`（启用时）
 - stub manifest（兜底）
 
-2. phase1 语义路由
-- `guided synthetic`：走 `semantic_pair`
-- `prompt-only synthetic`：走 `prompt_score`
-- fallback：走 `semantic_anchor`
-- 由 `filter.phase1_semantic.*` 控制。
+2. 两个原始分数
+- `s_anchor = sim(anchor_image, synthetic_image)`（仅 guided synthetic 使用；由 `semantic_pair` 提供）
+- `s_prompt = sim(prompt_text, synthetic_image)`（所有样本都会计算）
 
-3. policy 决策逻辑
-- `decision=tri_gate_plus_weighted` 时：
-  - 先看 gates（硬门）
-  - 同时计算 `final_score`（排序/分析）
+3. 一个统一总分
+- `s_final = w_anchor * s_anchor + w_prompt * s_prompt`
+- guided synthetic：`w_anchor=guided_w_anchor`，`w_prompt=guided_w_prompt`
+- prompt-only synthetic：`w_anchor=0`，`w_prompt=1`
 
-4. anchor 约束逻辑
-- `semantic_anchor` 和 `anchor_ood` 依赖 real anchors。
-- 若 anchors 太少，相关 stage 会降级或标记 insufficient。
+4. 一个分桶策略
+- guided 最小资格：`s_anchor >= guided_min_anchor && s_prompt > guided_min_prompt`
+- 在资格集合内按 `s_final` 排序取 Top-K 为 `accept`
+- 其余样本进入 `uncertain`（Expert 审核池）
+- `reject=0`（仅当 `policy.ranking_review.hard_reject=true` 时允许 reject）
 
 ## 5. 运行命令
 
@@ -60,8 +60,9 @@ python filter/run_filter.py \
 1. `guided_synth_count=0`
 - 检查 manifest 是否有 `anchor_real_sample_id` 等 guided 字段。
 
-2. `insufficient_anchor_embeddings`
-- 增加 real anchors，或调整相关 gate/阈值。
+2. `eligible_total` 偏低
+- 检查 `guided_min_anchor / guided_min_prompt` 是否过严。
+- 检查 guided 样本的 anchor 配对字段是否正确（`anchor_real_sample_id` 等）。
 
-3. 大量 reject
-- 先检查 phase1 路由是否命中预期，再校准 gate 的 quantile/buffer。
+3. 出现 reject
+- 检查是否开启了 `policy.ranking_review.hard_reject=true`。

@@ -7,56 +7,49 @@ import unittest
 
 from filter.run_filter import (
     _apply_topk_review_selection,
-    _gate_applies_to_row,
     _resolve_filter_prompt_text,
     build_phase1_semantic_scores,
 )
 
 
 class FilterPhase1SemanticTest(unittest.TestCase):
-    def test_guided_fusion_weighted_sum(self) -> None:
-        rows = [{"sample_id": "s_guided", "source": "synthetic", "anchor_real_sample_id": "r1"}]
-        semantic_scores = {"s_guided": {"s_semantic_anchor": 0.4}}
+    def test_phase1_v1_scoring_guided_and_prompt_only(self) -> None:
+        rows = [
+            {"sample_id": "s_guided", "source": "synthetic", "anchor_real_sample_id": "r1"},
+            {"sample_id": "s_prompt", "source": "synthetic"},
+        ]
         paired_scores = {"s_guided": {"s_semantic_pair": 0.9, "s_semantic_pair_hit": 1.0}}
-        prompt_scores = {"s_guided": 0.2}
-        phase1_cfg = {
-            "enabled": True,
-            "guided_source": "semantic_pair",
-            "prompt_only_source": "prompt_score",
-            "fallback_source": "semantic_anchor",
-            "guided_marker_fields": ["anchor_real_sample_id"],
-            "guided_fusion": {
-                "enabled": True,
-                "method": "weighted_sum",
-                "pair_weight": 0.8,
-                "prompt_weight": 0.2,
-            },
-        }
-        out, _ = build_phase1_semantic_scores(
-            rows=rows,
-            semantic_scores=semantic_scores,
-            paired_scores=paired_scores,
-            prompt_scores=prompt_scores,
-            phase1_cfg=phase1_cfg,
-        )
-        self.assertEqual(out["s_guided"]["s_phase1_semantic_source"], "semantic_pair_fused")
-        self.assertAlmostEqual(out["s_guided"]["s_phase1_semantic"], 0.76, places=6)
+        prompt_scores = {"s_guided": 0.2, "s_prompt": 0.8}
+        phase1_cfg = {"enabled": True, "guided_marker_fields": ["anchor_real_sample_id"], "guided_w_anchor": 0.8, "guided_w_prompt": 0.2}
+        out, state = build_phase1_semantic_scores(rows=rows, semantic_scores={}, paired_scores=paired_scores, prompt_scores=prompt_scores, phase1_cfg=phase1_cfg)
+        self.assertEqual(out["s_guided"]["phase1_route"], "guided")
+        self.assertAlmostEqual(out["s_guided"]["s_anchor"], 0.9, places=6)
+        self.assertAlmostEqual(out["s_guided"]["s_prompt"], 0.2, places=6)
+        self.assertAlmostEqual(out["s_guided"]["s_final"], 0.76, places=6)
+        self.assertEqual(out["s_prompt"]["phase1_route"], "prompt_only")
+        self.assertAlmostEqual(out["s_prompt"]["w_anchor"], 0.0, places=6)
+        self.assertAlmostEqual(out["s_prompt"]["w_prompt"], 1.0, places=6)
+        self.assertAlmostEqual(out["s_prompt"]["s_final"], 0.8, places=6)
+        self.assertEqual(state["guided_synth_count"], 1)
+        self.assertEqual(state["prompt_only_synth_count"], 1)
 
     def test_topk_review_selection(self) -> None:
         score_rows = [
-            {"sample_id": "r1", "source": "real", "final_score": 1.0, "decision": "accept"},
-            {"sample_id": "s1", "source": "synthetic", "final_score": 0.9, "decision": "reject"},
-            {"sample_id": "s2", "source": "synthetic", "final_score": 0.7, "decision": "reject"},
-            {"sample_id": "s3", "source": "synthetic", "final_score": 0.2, "decision": "reject"},
+            {"sample_id": "r1", "source": "real", "s_final": 1.0, "decision": "accept"},
+            {"sample_id": "s1", "source": "synthetic", "s_final": 0.9, "phase1_route": "guided", "s_anchor": 0.92, "s_prompt": 0.1, "decision": "uncertain"},
+            {"sample_id": "s2", "source": "synthetic", "s_final": 0.85, "phase1_route": "guided", "s_anchor": 0.5, "s_prompt": 0.1, "decision": "uncertain"},
+            {"sample_id": "s3", "source": "synthetic", "s_final": 0.7, "phase1_route": "prompt_only", "s_anchor": 0.0, "s_prompt": 0.7, "decision": "uncertain"},
         ]
         filter_cfg = {
             "policy": {
                 "ranking_review": {
                     "enabled": True,
                     "target_source": "synthetic",
-                    "rank_metric": "final_score",
+                    "rank_metric": "s_final",
                     "keep_top_k": 2,
                     "review_rest": True,
+                    "guided_min_anchor": 0.85,
+                    "guided_min_prompt": 0.0,
                 }
             }
         }
@@ -64,90 +57,32 @@ class FilterPhase1SemanticTest(unittest.TestCase):
         self.assertTrue(state["enabled"])
         self.assertEqual(state["keep_count"], 2)
         self.assertEqual(score_rows[1]["decision"], "accept")
-        self.assertEqual(score_rows[2]["decision"], "accept")
-        self.assertEqual(score_rows[3]["decision"], "uncertain")
+        self.assertEqual(score_rows[2]["decision"], "uncertain")
+        self.assertEqual(score_rows[3]["decision"], "accept")
+        self.assertEqual(state["reject_after_selection"], 0)
 
-    def test_topk_review_selection_with_eligibility(self) -> None:
+    def test_topk_review_selection_with_hard_reject(self) -> None:
         score_rows = [
-            {"sample_id": "s1", "source": "synthetic", "final_score": 0.9, "s_prompt": 0.0, "s_phase1_semantic_source": "semantic_pair_fused", "decision": "reject"},
-            {"sample_id": "s2", "source": "synthetic", "final_score": 0.8, "s_prompt": 0.1, "s_phase1_semantic_source": "semantic_pair_fused", "decision": "reject"},
-            {"sample_id": "s3", "source": "synthetic", "final_score": 0.7, "s_prompt": 0.2, "s_phase1_semantic_source": "semantic_pair_fused", "decision": "reject"},
+            {"sample_id": "s1", "source": "synthetic", "s_final": 0.9, "phase1_route": "guided", "s_anchor": 0.7, "s_prompt": 0.1, "decision": "uncertain"},
+            {"sample_id": "s2", "source": "synthetic", "s_final": 0.8, "phase1_route": "prompt_only", "s_anchor": 0.0, "s_prompt": 0.8, "decision": "uncertain"},
         ]
         filter_cfg = {
             "policy": {
                 "ranking_review": {
                     "enabled": True,
                     "target_source": "synthetic",
-                    "rank_metric": "final_score",
-                    "keep_top_k": 2,
+                    "rank_metric": "s_final",
+                    "keep_top_k": 1,
                     "review_rest": True,
-                    "accept_eligibility": [
-                        {
-                            "metric": "s_prompt",
-                            "op": ">",
-                            "threshold": 0.0,
-                            "phase1_sources": ["semantic_pair"],
-                        }
-                    ],
+                    "guided_min_anchor": 0.85,
+                    "hard_reject": True,
                 }
             }
         }
         state = _apply_topk_review_selection(score_rows=score_rows, filter_cfg=filter_cfg)
-        self.assertEqual(state["eligible_total"], 2)
-        self.assertEqual(score_rows[0]["decision"], "uncertain")
-        self.assertEqual(score_rows[0]["decision_basis"], "policy_ranking_ineligible_review")
+        self.assertEqual(state["eligible_total"], 1)
+        self.assertEqual(score_rows[0]["decision"], "reject")
         self.assertEqual(score_rows[1]["decision"], "accept")
-        self.assertEqual(score_rows[2]["decision"], "accept")
-
-    def test_gate_condition_by_phase1_source(self) -> None:
-        row = {"sample_id": "s_prompt", "source": "synthetic"}
-        gate_cfg = {"metric": "s_phase1_semantic", "phase1_sources": ["semantic_pair", "semantic_anchor"]}
-        self.assertFalse(_gate_applies_to_row(gate_cfg=gate_cfg, row=row, phase1_source="prompt_score"))
-        self.assertTrue(_gate_applies_to_row(gate_cfg=gate_cfg, row=row, phase1_source="semantic_pair"))
-        self.assertTrue(_gate_applies_to_row(gate_cfg=gate_cfg, row=row, phase1_source="semantic_pair_fused"))
-
-    def test_phase1_routing_guided_prompt_and_fallback(self) -> None:
-        rows = [
-            {"sample_id": "r1", "source": "real"},
-            {"sample_id": "s_guided", "source": "synthetic", "anchor_real_sample_id": "r1"},
-            {"sample_id": "s_prompt", "source": "synthetic"},
-            {"sample_id": "s_guided_miss", "source": "synthetic", "anchor_real_sample_id": "missing_real"},
-        ]
-        semantic_scores = {
-            "r1": {"s_semantic_anchor": 0.3},
-            "s_guided": {"s_semantic_anchor": 0.4},
-            "s_prompt": {"s_semantic_anchor": 0.5},
-            "s_guided_miss": {"s_semantic_anchor": 0.6},
-        }
-        paired_scores = {
-            "s_guided": {"s_semantic_pair": 0.9, "s_semantic_pair_hit": 1.0},
-            "s_guided_miss": {"s_semantic_pair": 0.0, "s_semantic_pair_hit": 0.0},
-        }
-        prompt_scores = {"s_prompt": 0.8}
-        phase1_cfg = {
-            "enabled": True,
-            "guided_source": "semantic_pair",
-            "prompt_only_source": "prompt_score",
-            "fallback_source": "semantic_anchor",
-            "guided_marker_fields": ["anchor_real_sample_id"],
-        }
-
-        out, state = build_phase1_semantic_scores(
-            rows=rows,
-            semantic_scores=semantic_scores,
-            paired_scores=paired_scores,
-            prompt_scores=prompt_scores,
-            phase1_cfg=phase1_cfg,
-        )
-
-        self.assertEqual(out["s_guided"]["s_phase1_semantic_source"], "semantic_pair")
-        self.assertAlmostEqual(out["s_guided"]["s_phase1_semantic"], 0.9, places=6)
-        self.assertEqual(out["s_prompt"]["s_phase1_semantic_source"], "prompt_score")
-        self.assertAlmostEqual(out["s_prompt"]["s_phase1_semantic"], 0.8, places=6)
-        self.assertEqual(out["s_guided_miss"]["s_phase1_semantic_source"], "semantic_anchor")
-        self.assertAlmostEqual(out["s_guided_miss"]["s_phase1_semantic"], 0.6, places=6)
-        self.assertEqual(state["guided_synth_count"], 2)
-        self.assertEqual(state["prompt_only_synth_count"], 1)
 
     def test_prompt_text_can_reuse_generate_template_file(self) -> None:
         with tempfile.TemporaryDirectory(prefix="filter_phase1_prompt_") as td:

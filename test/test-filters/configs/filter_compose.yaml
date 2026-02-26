@@ -47,8 +47,7 @@ filter:
   # true 时，source=real 的样本最终强制 accept（不会被过滤掉）。
   keep_real_always: true
 
-  # 非 tri_gate 决策时会用到的三段阈值（accept / uncertain / reject）。
-  # 当前 policy=tri_gate_plus_weighted，主决策看 gates；这三个阈值主要用于兜底或改策略时生效。
+  # v1 主策略是 Top-K + 审核池；阈值仅在排序策略关闭时兜底。
   accept_threshold: 0.72
   uncertain_low: 0.62
   uncertain_high: 0.72
@@ -71,81 +70,16 @@ filter:
       - "a low quality synthetic artifact image"
       - "a drawing, painting, or cartoon"
 
-  # 控制“计算哪些子指标”。
-  # 注意：某 stage 关掉后，即使 policy 引用了该指标，值通常会退化为默认值（常见是 0）。
+  # v1 仅保留 prompt + anchor pair 的语义分。
   stages:
-    - id: semantic_anchor # 图像 vs real anchor 集合相似度（聚合后映射到 0~1）
-      enabled: true
     - id: prompt_score # 图像 vs prompt 语义匹配分
       enabled: true
-    - id: prompt_margin # 正负 prompt 间隔（越大越好）
-      enabled: false
-    - id: consistency # PCS 扰动一致性（当前关闭）
-      enabled: false
-    - id: multicrop # 多随机裁剪一致性（当前关闭）
-      enabled: false
-    - id: anchor_ood # 相对 real 分布的 OOD（马氏距离）
-      enabled: false
-    - id: dedup # 去重相似度（当前关闭）
-      enabled: false
-    - id: quality # 清晰度/曝光质量分
-      enabled: false
 
-  # consistency stage 的参数（当前 stage 关闭，参数暂不生效）。
-  pcs:
-    repeats: 2
-    grid_rows: 4
-    grid_cols: 4
-    swap_ratio: 0.4
-    min_swaps: 2
-    max_swaps: 8
-    seed_base: 20260214
-
-  # multicrop stage 的参数（当前 stage 关闭，参数暂不生效）。
-  multicrop:
-    n_random: 4
-    crop_frac: 0.45
-    seed_base: 20260214
-
-  # OOD: 用 real anchor 拟合分布，再计算每张图到该分布的 md2。
-  anchor_ood:
-    # true: anchor 来自输入里 source=real 的样本。
-    anchor_from_source_real: true
-    # 若未显式写 threshold，则用 anchor md2 的分位数作为阈值。
-    threshold_quantile: 0.99
-    # 最多用于拟合的 anchor 数量。
-    max_anchor_samples: 2000
-    # 数值稳定参数。
-    eps: 1.0e-6
-    diag_var_floor: 1.0e-3
-
-  # 语义锚点：s_sem(x)=reduce_{r in real}(sim(x,r))。
-  semantic_anchor:
-    anchor_from_source_real: true
-    # 可选 mean/p25/p75/median；median 更稳健。
-    reduce: median
-    # 对 real 样本本身计算时，是否排除“和自己比较”。
-    self_exclude_for_real: true
-    # 小于该数量则该阶段会被标记为 insufficient_anchor_embeddings。
-    min_anchor_count: 2
-    max_anchor_samples: 2000
-
-  # Phase1 路由：决定最终 s_phase1_semantic 来自哪个源。
+  # Phase1 v1：仅保留 s_anchor / s_prompt / s_final。
   phase1_semantic:
     enabled: true
-    # 对“有 real 引导标记”的 synthetic，优先用 paired semantic（x 与其 anchor 的相似度）。
-    guided_source: semantic_pair
-    # 对“非 guided 的 synthetic”，用 prompt_score。
-    prompt_only_source: prompt_score
-    # 上述条件都不满足时的兜底来源。
-    fallback_source: semantic_anchor
-
-    # guided 样本可选融合：semantic_pair 与 prompt_score 加权。
-    guided_fusion:
-      enabled: true
-      method: weighted_sum # weighted_sum | geometric_mean | harmonic_mean
-      pair_weight: 0.8
-      prompt_weight: 0.2
+    guided_w_anchor: 0.8
+    guided_w_prompt: 0.2
 
     # 行内 prompt 字段名；存在时覆盖 clip.prompt_text。
     prompt_field: effective_prompt_text
@@ -161,45 +95,16 @@ filter:
     anchor_sid_fields:
       - anchor_real_sample_id
 
-  # 简单质量分：blur_norm 由 blur_score / blur_good_threshold 归一化得到。
-  quality:
-    blur_good_threshold: 80.0
-
   policy:
-    # 仅计算加权分，不使用硬 gate 直接拒绝。
-    decision: weighted
+    decision: phase1_v1
 
-    # 保留字段，weighted 下不使用。
-    calibration_sources:
-      - real
-
-    # weighted + ranking_review 下不使用硬 gate。
-    gates:
-      []
-
-    weighted:
-      final_score:
-        # 仅保留 phase1 语义统一得分：
-        # prompt-only => prompt_text <-> synthetic
-        # guided/fallback => real_anchor <-> synthetic
-        s_phase1_semantic: 1.0
-
-    # Top-K 保留 + 其余进入 Expert 审核（uncertain），不直接 reject。
+    # v1: guided 先过最低资格，再按 s_final 取 Top-K；其余进 uncertain。
     ranking_review:
       enabled: true
       target_source: synthetic
-      rank_metric: final_score
+      rank_metric: s_final
       keep_top_k: 6
       review_rest: true
-      # 保留资格：guided 分支必须具备最基本的 prompt 匹配，否则只进审核池。
-      accept_eligibility:
-        - metric: s_semantic_pair
-          op: ">="
-          threshold: 0.85
-          phase1_sources:
-            - semantic_pair
-        - metric: s_prompt
-          op: ">"
-          threshold: 0.0
-          phase1_sources:
-            - semantic_pair
+      guided_min_anchor: 0.85
+      guided_min_prompt: 0.0
+      hard_reject: false
