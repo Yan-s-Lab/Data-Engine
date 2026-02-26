@@ -16,6 +16,7 @@ from common.manifest_io import read_jsonl, write_json, write_jsonl
 from filter.filter_stages import (
     compute_paired_anchor_semantic_scores,
     build_image_embeddings,
+    compute_prompt_margin_scores,
     compute_prompt_scores,
 )
 from filter.manifest_builder import build_input_manifest_from_config
@@ -385,14 +386,27 @@ def run_composed_clip_filter(
         }
         for sid in sid_list
     }
-    prompt_scores = compute_prompt_scores(
-        rows=rows,
-        image_embeddings=embeddings,
-        runtime=runtime,
-        prompt_text=prompt_text,
-        prompt_score_mode=prompt_score_mode,
-        prompt_field=prompt_field,
-    )
+    prompt_metric = str(phase1_cfg.get("prompt_metric", "score")).strip().lower()
+    if prompt_metric in {"margin", "margin_norm"}:
+        margin_scores = compute_prompt_margin_scores(
+            rows=rows,
+            image_embeddings=embeddings,
+            runtime=runtime,
+            pos_prompt=prompt_text,
+            neg_prompts=[str(x) for x in clip_cfg.get("negative_prompts", [])],
+            prompt_score_mode=prompt_score_mode,
+        )
+        key = "s_prompt_margin_norm" if prompt_metric == "margin_norm" else "s_prompt_margin"
+        prompt_scores = {sid: float(v.get(key, 0.0)) for sid, v in margin_scores.items()}
+    else:
+        prompt_scores = compute_prompt_scores(
+            rows=rows,
+            image_embeddings=embeddings,
+            runtime=runtime,
+            prompt_text=prompt_text,
+            prompt_score_mode=prompt_score_mode,
+            prompt_field=prompt_field,
+        )
 
     if bool(phase1_cfg.get("enabled", False)):
         paired_scores, phase1_pair_state = compute_paired_anchor_semantic_scores(
@@ -462,6 +476,7 @@ def run_composed_clip_filter(
             **phase1_state,
             "paired": phase1_pair_state,
             "prompt_field": prompt_field,
+            "prompt_metric": prompt_metric,
         },
         **cache_stats,
     }

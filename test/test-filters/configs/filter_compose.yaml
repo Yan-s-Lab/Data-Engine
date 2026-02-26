@@ -57,8 +57,8 @@ filter:
     model_id: google/siglip2-base-patch16-224
     # auto: 有 CUDA 就走 GPU，否则 CPU。
     device: auto
-    # 当前数据分布下 sigmoid 值域过小，改为 cosine 提高区分度。
-    prompt_score_mode: cosine
+    # margin 口径下建议使用 siglip_sigmoid（基于 logits 差值更稳定）。
+    prompt_score_mode: siglip_sigmoid
 
     # 正向任务语义（用于 prompt_score / prompt_margin）。
     # Filter 侧使用短关键词句更稳（generation 可继续用长模板）。
@@ -80,6 +80,8 @@ filter:
     enabled: true
     guided_w_anchor: 0.8
     guided_w_prompt: 0.2
+    # score=图文相似度；margin_norm=正负提示词差值归一化。
+    prompt_metric: margin_norm
 
     # 行内 prompt 字段名；存在时覆盖 clip.prompt_text。
     prompt_field: effective_prompt_text

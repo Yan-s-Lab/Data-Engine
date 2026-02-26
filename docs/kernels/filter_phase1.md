@@ -36,7 +36,9 @@
 
 2. 两个原始分数
 - `s_anchor = sim(anchor_image, synthetic_image)`（仅 guided synthetic 使用；由 `semantic_pair` 提供）
-- `s_prompt = sim(prompt_text, synthetic_image)`（所有样本都会计算）
+- `s_prompt`（所有样本都会计算）：
+  - `prompt_metric=score`：`sim(prompt_text, synthetic_image)`
+  - `prompt_metric=margin_norm`：`norm( score(pos_prompt) - max(score(neg_prompts)) )`
 
 3. 一个统一总分
 - `s_final = w_anchor * s_anchor + w_prompt * s_prompt`
