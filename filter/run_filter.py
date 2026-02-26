@@ -83,18 +83,45 @@ def _apply_topk_review_selection(
     keep_top_k = int(ranking_cfg.get("keep_top_k", 0))
     keep_top_ratio = float(ranking_cfg.get("keep_top_ratio", 0.0))
     review_rest = bool(ranking_cfg.get("review_rest", True))
+    eligibility_rules = ranking_cfg.get("accept_eligibility", [])
 
     candidates = [r for r in score_rows if str(r.get("source", "")) == target_source]
     sorted_rows = sorted(candidates, key=lambda r: float(r.get(rank_metric, 0.0)), reverse=True)
     total = len(sorted_rows)
 
-    keep_n = 0
-    if keep_top_k > 0:
-        keep_n = min(total, keep_top_k)
-    elif keep_top_ratio > 0.0:
-        keep_n = min(total, max(0, int(round(total * keep_top_ratio))))
+    eligible_rows = sorted_rows
+    if isinstance(eligibility_rules, list) and eligibility_rules:
+        out_rows: List[Dict[str, Any]] = []
+        for row in sorted_rows:
+            phase1_source = str(row.get("s_phase1_semantic_source", "")).strip()
+            ok = True
+            for rule in eligibility_rules:
+                if not isinstance(rule, dict):
+                    continue
+                if not _gate_applies_to_row(gate_cfg=rule, row=row, phase1_source=phase1_source):
+                    continue
+                metric_name = str(rule.get("metric", "")).strip()
+                if not metric_name:
+                    continue
+                op = _as_op(str(rule.get("op", ">=")))
+                threshold = float(rule.get("threshold", 0.0))
+                mv = float(row.get(metric_name, 0.0))
+                if not _eval_gate(mv, op, threshold):
+                    ok = False
+                    break
+            if ok:
+                out_rows.append(row)
+        eligible_rows = out_rows
 
-    keep_ids = {str(r.get("sample_id", "")) for r in sorted_rows[:keep_n]}
+    keep_n = 0
+    eligible_total = len(eligible_rows)
+    if keep_top_k > 0:
+        keep_n = min(eligible_total, keep_top_k)
+    elif keep_top_ratio > 0.0:
+        keep_n = min(eligible_total, max(0, int(round(eligible_total * keep_top_ratio))))
+
+    keep_ids = {str(r.get("sample_id", "")) for r in eligible_rows[:keep_n]}
+    eligible_ids = {str(r.get("sample_id", "")) for r in eligible_rows}
     rank_map = {str(r.get("sample_id", "")): idx + 1 for idx, r in enumerate(sorted_rows)}
 
     accept_count = 0
@@ -125,7 +152,10 @@ def _apply_topk_review_selection(
         else:
             row["decision"] = "uncertain" if review_rest else "reject"
             row["keep"] = False
-            row["decision_basis"] = "policy_ranking_review_queue" if review_rest else "policy_ranking_topk_reject"
+            if sid not in eligible_ids:
+                row["decision_basis"] = "policy_ranking_ineligible_review" if review_rest else "policy_ranking_ineligible_reject"
+            else:
+                row["decision_basis"] = "policy_ranking_review_queue" if review_rest else "policy_ranking_topk_reject"
             if row["decision"] == "uncertain":
                 uncertain_count += 1
             else:
@@ -136,10 +166,12 @@ def _apply_topk_review_selection(
         "target_source": target_source,
         "rank_metric": rank_metric,
         "candidate_total": total,
+        "eligible_total": eligible_total,
         "keep_top_k": keep_top_k,
         "keep_top_ratio": keep_top_ratio,
         "keep_count": keep_n,
         "review_rest": review_rest,
+        "accept_eligibility_rules": eligibility_rules if isinstance(eligibility_rules, list) else [],
         "accept_after_selection": accept_count,
         "uncertain_after_selection": uncertain_count,
         "reject_after_selection": reject_count,

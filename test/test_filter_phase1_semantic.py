@@ -67,6 +67,38 @@ class FilterPhase1SemanticTest(unittest.TestCase):
         self.assertEqual(score_rows[2]["decision"], "accept")
         self.assertEqual(score_rows[3]["decision"], "uncertain")
 
+    def test_topk_review_selection_with_eligibility(self) -> None:
+        score_rows = [
+            {"sample_id": "s1", "source": "synthetic", "final_score": 0.9, "s_prompt": 0.0, "s_phase1_semantic_source": "semantic_pair_fused", "decision": "reject"},
+            {"sample_id": "s2", "source": "synthetic", "final_score": 0.8, "s_prompt": 0.1, "s_phase1_semantic_source": "semantic_pair_fused", "decision": "reject"},
+            {"sample_id": "s3", "source": "synthetic", "final_score": 0.7, "s_prompt": 0.2, "s_phase1_semantic_source": "semantic_pair_fused", "decision": "reject"},
+        ]
+        filter_cfg = {
+            "policy": {
+                "ranking_review": {
+                    "enabled": True,
+                    "target_source": "synthetic",
+                    "rank_metric": "final_score",
+                    "keep_top_k": 2,
+                    "review_rest": True,
+                    "accept_eligibility": [
+                        {
+                            "metric": "s_prompt",
+                            "op": ">",
+                            "threshold": 0.0,
+                            "phase1_sources": ["semantic_pair"],
+                        }
+                    ],
+                }
+            }
+        }
+        state = _apply_topk_review_selection(score_rows=score_rows, filter_cfg=filter_cfg)
+        self.assertEqual(state["eligible_total"], 2)
+        self.assertEqual(score_rows[0]["decision"], "uncertain")
+        self.assertEqual(score_rows[0]["decision_basis"], "policy_ranking_ineligible_review")
+        self.assertEqual(score_rows[1]["decision"], "accept")
+        self.assertEqual(score_rows[2]["decision"], "accept")
+
     def test_gate_condition_by_phase1_source(self) -> None:
         row = {"sample_id": "s_prompt", "source": "synthetic"}
         gate_cfg = {"metric": "s_phase1_semantic", "phase1_sources": ["semantic_pair", "semantic_anchor"]}

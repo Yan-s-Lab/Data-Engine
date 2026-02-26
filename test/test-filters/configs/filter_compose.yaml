@@ -191,3 +191,15 @@ filter:
       rank_metric: final_score
       keep_top_k: 6
       review_rest: true
+      # 保留资格：guided 分支必须具备最基本的 prompt 匹配，否则只进审核池。
+      accept_eligibility:
+        - metric: s_semantic_pair
+          op: ">="
+          threshold: 0.85
+          phase1_sources:
+            - semantic_pair
+        - metric: s_prompt
+          op: ">"
+          threshold: 0.0
+          phase1_sources:
+            - semantic_pair
