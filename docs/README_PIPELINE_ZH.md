@@ -71,7 +71,7 @@
 
 - 单配置托管运行：`pipelines/run_managed_pipeline.py`
 - 容器入口：`deploy/pipeline/docker-compose.pipeline.yml`
-- 串行计划：`deploy/pipeline/pipeline_serial_plan.example.yaml`
+- 串行计划：`deploy/pipeline/pipeline_serial_plan.example-yk003.yaml`
 
 `deploy/pipeline/.env` 变量优先级：
 `PIPELINE_SERIAL_PLAN` > `PIPELINE_CONFIG_LIST_FILE/PIPELINE_CONFIGS` > `PIPELINE_CONFIG`
@@ -89,7 +89,7 @@ cp deploy/pipeline/.env.example deploy/pipeline/.env
 按需编辑 `deploy/pipeline/.env`（三选一）：
 - 单配置：设置 `PIPELINE_CONFIG=...`
 - 多配置队列：设置 `PIPELINE_CONFIGS=cfg1,cfg2,...` 或 `PIPELINE_CONFIG_LIST_FILE=...`
-- 串行分阶段计划：设置 `PIPELINE_SERIAL_PLAN=deploy/pipeline/pipeline_serial_plan.example.yaml`
+- 串行分阶段计划：设置 `PIPELINE_SERIAL_PLAN=deploy/pipeline/pipeline_serial_plan.example-yk003.yaml`
 
 2. 启动（前台）
 
@@ -119,6 +119,29 @@ docker compose --env-file deploy/pipeline/.env \
 docker compose --env-file deploy/pipeline/.env \
   -f deploy/pipeline/docker-compose.pipeline.yml \
   logs -f --tail 200
+```
+
+补充：查看文件日志（容器内流程会把任务日志落到宿主机 `artifacts/logs/`）
+
+```bash
+ls -lt artifacts/logs
+tail -n 200 artifacts/logs/managed_pipeline.log
+```
+
+补充：查看“当前跑到哪个 phase / 卡在哪个 phase”
+
+```bash
+# 1) 先看容器是否在运行或重启
+docker compose --env-file deploy/pipeline/.env \
+  -f deploy/pipeline/docker-compose.pipeline.yml \
+  ps
+
+# 2) 看最近一次串行计划摘要（status + 每个 stage/task 的 return_code）
+ls -t artifacts/logs/serial_plan_summary_*.json | head -n 1 | xargs cat
+
+# 3) 按摘要中的 log 字段打开对应任务日志
+tail -n 200 artifacts/logs/dataloader__*.log
+tail -n 200 artifacts/logs/generation__*.log
 ```
 
 5. 终止（停止并移除容器）
