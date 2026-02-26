@@ -1265,6 +1265,11 @@ def main() -> None:
     splits_dir = filter_dir / "splits"
     filter_dir.mkdir(parents=True, exist_ok=True)
     splits_dir.mkdir(parents=True, exist_ok=True)
+    phase1_compare_log_path = filter_dir / "phase1_compare_log.jsonl"
+    legacy_artifacts_removed: List[str] = []
+    if mode == "compose" and phase1_compare_log_path.exists():
+        phase1_compare_log_path.unlink()
+        legacy_artifacts_removed.append(str(phase1_compare_log_path))
 
     report_extra: Dict[str, Any] = {}
     if mode == "stub":
@@ -1334,6 +1339,7 @@ def main() -> None:
             "uncertain_low": uncertain_low,
             "uncertain_high": uncertain_high,
         },
+        "legacy_artifacts_removed": legacy_artifacts_removed,
         **report_extra,
     }
     write_json(filter_dir / "report.json", report)
