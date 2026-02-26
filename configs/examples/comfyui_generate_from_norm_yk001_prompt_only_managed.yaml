@@ -12,7 +12,7 @@ generate:
   # 每个 real 样本要生成的 synthetic 数量。
   synth_per_real: 1
   # 全局生成上限（notice：demo 截断策略，当前最多只生成 20 张）。
-  max_synth_samples: 60
+  max_synth_samples: 30
   # 基础随机种子；实际每个样本 seed = seed_base + sample_index。
   seed_base: 20260225
   comfyui:

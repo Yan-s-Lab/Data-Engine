@@ -69,6 +69,117 @@ def choose_decision(score: float, accept_threshold: float, uncertain_low: float,
     return "reject"
 
 
+def _apply_topk_review_selection(
+    score_rows: List[Dict[str, Any]],
+    filter_cfg: Dict[str, Any],
+) -> Dict[str, Any]:
+    policy_cfg = dict(filter_cfg.get("policy", {}))
+    ranking_cfg = dict(policy_cfg.get("ranking_review", {}))
+    if not bool(ranking_cfg.get("enabled", False)):
+        return {"enabled": False}
+
+    target_source = str(ranking_cfg.get("target_source", "synthetic")).strip()
+    rank_metric = str(ranking_cfg.get("rank_metric", "final_score")).strip()
+    keep_top_k = int(ranking_cfg.get("keep_top_k", 0))
+    keep_top_ratio = float(ranking_cfg.get("keep_top_ratio", 0.0))
+    review_rest = bool(ranking_cfg.get("review_rest", True))
+
+    candidates = [r for r in score_rows if str(r.get("source", "")) == target_source]
+    sorted_rows = sorted(candidates, key=lambda r: float(r.get(rank_metric, 0.0)), reverse=True)
+    total = len(sorted_rows)
+
+    keep_n = 0
+    if keep_top_k > 0:
+        keep_n = min(total, keep_top_k)
+    elif keep_top_ratio > 0.0:
+        keep_n = min(total, max(0, int(round(total * keep_top_ratio))))
+
+    keep_ids = {str(r.get("sample_id", "")) for r in sorted_rows[:keep_n]}
+    rank_map = {str(r.get("sample_id", "")): idx + 1 for idx, r in enumerate(sorted_rows)}
+
+    accept_count = 0
+    uncertain_count = 0
+    reject_count = 0
+    for row in score_rows:
+        sid = str(row.get("sample_id", ""))
+        src = str(row.get("source", ""))
+        if src != target_source:
+            if str(row.get("decision", "")) == "accept":
+                accept_count += 1
+            elif str(row.get("decision", "")) == "uncertain":
+                uncertain_count += 1
+            else:
+                reject_count += 1
+            continue
+
+        row["rank_metric"] = rank_metric
+        row["rank_value"] = round(float(row.get(rank_metric, 0.0)), 6)
+        row["rank_position"] = int(rank_map.get(sid, 0))
+
+        if sid in keep_ids:
+            row["decision"] = "accept"
+            row["keep"] = True
+            row["decision_basis"] = "policy_ranking_topk_keep"
+            row["gate_fail"] = ""
+            accept_count += 1
+        else:
+            row["decision"] = "uncertain" if review_rest else "reject"
+            row["keep"] = False
+            row["decision_basis"] = "policy_ranking_review_queue" if review_rest else "policy_ranking_topk_reject"
+            if row["decision"] == "uncertain":
+                uncertain_count += 1
+            else:
+                reject_count += 1
+
+    return {
+        "enabled": True,
+        "target_source": target_source,
+        "rank_metric": rank_metric,
+        "candidate_total": total,
+        "keep_top_k": keep_top_k,
+        "keep_top_ratio": keep_top_ratio,
+        "keep_count": keep_n,
+        "review_rest": review_rest,
+        "accept_after_selection": accept_count,
+        "uncertain_after_selection": uncertain_count,
+        "reject_after_selection": reject_count,
+    }
+
+
+def _annotate_phase1_compare_log_with_final_decision(
+    report_extra: Dict[str, Any],
+    score_rows: List[Dict[str, Any]],
+) -> None:
+    phase1 = report_extra.get("phase1_semantic", {})
+    if not isinstance(phase1, dict):
+        return
+    path_raw = str(phase1.get("compare_log_path", "")).strip()
+    if not path_raw:
+        return
+    path = Path(path_raw)
+    if not path.exists():
+        return
+
+    rows = read_jsonl(path)
+    by_sid = {str(r.get("sample_id", "")): r for r in score_rows}
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        sid = str(row.get("sample_id", ""))
+        score = by_sid.get(sid)
+        if score is None:
+            out.append(row)
+            continue
+        row2 = dict(row)
+        row2["decision_final"] = str(score.get("decision", ""))
+        row2["decision_basis_final"] = str(score.get("decision_basis", ""))
+        if "rank_position" in score:
+            row2["rank_position"] = int(score.get("rank_position", 0))
+        if "rank_value" in score:
+            row2["rank_value"] = float(score.get("rank_value", 0.0))
+        out.append(row2)
+    write_jsonl(path, out)
+
+
 def quantile(values: List[float], q: float) -> float:
     if not values:
         return 0.0
@@ -1592,6 +1703,12 @@ def main() -> None:
         )
     else:
         raise ValueError(f"unsupported filter.mode: {mode}")
+
+    ranking_state = _apply_topk_review_selection(score_rows=score_rows, filter_cfg=filter_cfg)
+    if bool(ranking_state.get("enabled", False)):
+        report_extra = dict(report_extra)
+        report_extra["ranking_review"] = ranking_state
+        _annotate_phase1_compare_log_with_final_decision(report_extra=report_extra, score_rows=score_rows)
 
     accept_set = {r["sample_id"] for r in score_rows if r.get("decision") == "accept"}
     reject_set = {r["sample_id"] for r in score_rows if r.get("decision") == "reject"}

@@ -79,17 +79,17 @@ filter:
     - id: prompt_score # 图像 vs prompt 语义匹配分
       enabled: true
     - id: prompt_margin # 正负 prompt 间隔（越大越好）
-      enabled: true
+      enabled: false
     - id: consistency # PCS 扰动一致性（当前关闭）
       enabled: false
     - id: multicrop # 多随机裁剪一致性（当前关闭）
       enabled: false
     - id: anchor_ood # 相对 real 分布的 OOD（马氏距离）
-      enabled: true
+      enabled: false
     - id: dedup # 去重相似度（当前关闭）
       enabled: false
     - id: quality # 清晰度/曝光质量分
-      enabled: true
+      enabled: false
 
   # consistency stage 的参数（当前 stage 关闭，参数暂不生效）。
   pcs:
@@ -159,50 +159,28 @@ filter:
     blur_good_threshold: 80.0
 
   policy:
-    # tri_gate_plus_weighted: 先根据 gates 判 accept/uncertain/reject，
-    # 同时计算 weighted final_score 供排序/分析。
-    decision: tri_gate_plus_weighted
+    # 仅计算加权分，不使用硬 gate 直接拒绝。
+    decision: weighted
 
-    # gate 阈值校准时只用哪些 source。这里是只用 real。
+    # 保留字段，weighted 下不使用。
     calibration_sources:
       - real
 
-    # gates 支持 threshold（固定值）或 threshold_from（如 q05_real）。
+    # weighted + ranking_review 下不使用硬 gate。
     gates:
-      # semantic gate：仅用于 guided/fallback 路由，不用于 prompt-only 路由。
-      - metric: s_phase1_semantic
-        op: ">="
-        threshold_from: q05_real
-        buffer: 0.02
-        phase1_sources:
-          - semantic_pair
-          - semantic_anchor
-
-      # prompt-only 路由单独 gate：要求 prompt margin 不低于固定阈值。
-      # 该 gate 只作用于 phase1_source=prompt_score 的样本。
-      - metric: s_prompt_margin_norm
-        op: ">="
-        threshold: 0.25
-        buffer: 0.02
-        phase1_sources:
-          - prompt_score
-
-      # 当前 multicrop stage 关闭，因此这个 gate 也注释掉。
-      # - metric: s_multicrop_consistency
-      #   op: ">="
-      #   threshold_from: q05_real
-      #   buffer: 0.02
-
-      # OOD gate：要求 md2 不高于 real 的 99% 分位（允许 buffer）。
-      # 注意 metric 必须是 ood_md2（不要写成 ood_md2.）。
-      - metric: ood_md2
-        op: "<="
-        threshold_from: q99_real
-        buffer: 1.0
+      []
 
     weighted:
       final_score:
-        # 当前 final_score 只融合 phase1 语义与 OOD。
-        s_phase1_semantic: 0.7
-        # s_multicrop_consistency: 0.35
-        ood_score: 0.3
+        # 仅保留 phase1 语义统一得分：
+        # prompt-only => prompt_text <-> synthetic
+        # guided/fallback => real_anchor <-> synthetic
+        s_phase1_semantic: 1.0
+
+    # Top-K 保留 + 其余进入 Expert 审核（uncertain），不直接 reject。
+    ranking_review:
+      enabled: true
+      target_source: synthetic
+      rank_metric: final_score
+      keep_top_k: 6
+      review_rest: true

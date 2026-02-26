@@ -5,10 +5,40 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from filter.run_filter import _gate_applies_to_row, _resolve_filter_prompt_text, build_phase1_semantic_scores
+from filter.run_filter import (
+    _apply_topk_review_selection,
+    _gate_applies_to_row,
+    _resolve_filter_prompt_text,
+    build_phase1_semantic_scores,
+)
 
 
 class FilterPhase1SemanticTest(unittest.TestCase):
+    def test_topk_review_selection(self) -> None:
+        score_rows = [
+            {"sample_id": "r1", "source": "real", "final_score": 1.0, "decision": "accept"},
+            {"sample_id": "s1", "source": "synthetic", "final_score": 0.9, "decision": "reject"},
+            {"sample_id": "s2", "source": "synthetic", "final_score": 0.7, "decision": "reject"},
+            {"sample_id": "s3", "source": "synthetic", "final_score": 0.2, "decision": "reject"},
+        ]
+        filter_cfg = {
+            "policy": {
+                "ranking_review": {
+                    "enabled": True,
+                    "target_source": "synthetic",
+                    "rank_metric": "final_score",
+                    "keep_top_k": 2,
+                    "review_rest": True,
+                }
+            }
+        }
+        state = _apply_topk_review_selection(score_rows=score_rows, filter_cfg=filter_cfg)
+        self.assertTrue(state["enabled"])
+        self.assertEqual(state["keep_count"], 2)
+        self.assertEqual(score_rows[1]["decision"], "accept")
+        self.assertEqual(score_rows[2]["decision"], "accept")
+        self.assertEqual(score_rows[3]["decision"], "uncertain")
+
     def test_gate_condition_by_phase1_source(self) -> None:
         row = {"sample_id": "s_prompt", "source": "synthetic"}
         gate_cfg = {"metric": "s_phase1_semantic", "phase1_sources": ["semantic_pair", "semantic_anchor"]}

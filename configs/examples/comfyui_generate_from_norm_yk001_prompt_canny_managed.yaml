@@ -10,7 +10,7 @@ generate:
   # DataLoader 输出的真实样本清单（hard-code：硬编码路径，换 run_id/环境时需同步更新）。
   real_manifest: artifacts/runs/dataloader_norm_test_generation_yk002/dataloader/real_manifest.jsonl
   # 每个 real 样本要生成的 synthetic 数量。
-  synth_per_real: 2
+  synth_per_real: 1
   # 全局生成上限（notice：demo 截断策略，当前最多只生成 20 张）。
   # max_synth_samples: 20
   # 基础随机种子；实际每个样本 seed = seed_base + sample_index。
