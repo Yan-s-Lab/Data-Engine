@@ -62,13 +62,14 @@ filter:
 
     # 正向任务语义（用于 prompt_score / prompt_margin）。
     # Filter 侧使用短关键词句更稳（generation 可继续用长模板）。
-    prompt_text: "human, upper arm, deltoid muscle, anatomically correct"
-
+    # prompt_text: "human, upper arm, deltoid muscle"
+    prompt_text: "a human upper arm, clear deltoid muscle anatomy, anatomically correct, realistic skin texture"
     # 负向语义（用于 margin：正向得分 - 负向最大得分）。
     negative_prompts:
-      - "a collage or fragmented montage"
-      - "a low quality synthetic artifact image"
-      - "a drawing, painting, or cartoon"
+      - dog, canine, animal, fur, snout, paw, four-legged body
+      - non-human limb, creature anatomy, fantasy anatomy
+      - cartoon, drawing, painting, illustration, CGI, 3d render
+      - blurry, low-resolution, heavy artifacts, over-smoothed
 
   # v1 仅保留 prompt + anchor pair 的语义分。
   stages:
