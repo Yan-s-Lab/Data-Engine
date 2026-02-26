@@ -51,7 +51,7 @@ generate:
       # SaveImage 文件名前缀输入字段。
       input_key: filename_prefix
       # 用于补充命名上下文（services_id/task_name 等）的 dataloader 配置。
-      dataloader_config: configs/examples/dataloader_norm_test_generation_yk002.yaml
+      dataloader_config: configs/examples/dataloader_norm_test_generation_yk003.yaml
       # 输出文件前缀模板（纯 prompt 模式不依赖 anchor image 名）。
       template: "prompt_only_{sample_index}_{seed}"
     # 单任务超时秒数。

@@ -1,6 +1,6 @@
 run:
   # 本次生成任务的 run 标识；决定产物目录名。
-  run_id: yk003_prompt_canny_demo_managed_20260225_rerun
+  run_id: yk003_prompt_canny_demo_managed_20260225_2_rerun
   # 统一产物根目录，最终输出到 {artifacts_root}/{run_id}/...
   artifacts_root: artifacts/runs
 
@@ -8,13 +8,13 @@ generate:
   # 生成后端；当前脚本支持 basic / comfyui，这里走 ComfyUI。
   backend: comfyui
   # DataLoader 输出的真实样本清单（hard-code：硬编码路径，换 run_id/环境时需同步更新）。
-  real_manifest: artifacts/runs/dataloader_norm_test_generation_yk002/dataloader/real_manifest.jsonl
+  real_manifest: artifacts/runs/dataloader_norm_test_generation_yk003/dataloader/real_manifest.jsonl
   # 每个 real 样本要生成的 synthetic 数量。
-  synth_per_real: 3
+  synth_per_real: 5
   # 全局生成上限（notice：demo 截断策略，当前最多只生成 20 张）。
   # max_synth_samples: 20
   # 基础随机种子；实际每个样本 seed = seed_base + sample_index。
-  seed_base: 20270225
+  seed_base: 202702251
   comfyui:
     # ComfyUI HTTP API 地址。
     base_url: http://127.0.0.1:8188
@@ -51,7 +51,7 @@ generate:
       # SaveImage 文件名前缀输入字段。
       input_key: filename_prefix
       # 用于补充命名上下文（services_id/task_name 等）的 dataloader 配置。
-      dataloader_config: configs/examples/dataloader_norm_test_generation_yk002.yaml
+      dataloader_config: configs/examples/dataloader_norm_test_generation_yk003_managed.yaml
       # 输出文件前缀模板；anchor_image_stem 来自 anchor 图文件名（raw 优先）。
       template: "{anchor_image_stem}_canny"
     anchor_images:
@@ -78,7 +78,7 @@ generate:
     # 锚图尺寸过滤：超过阈值的 real image 直接跳过，不参与引导生成。
     anchor_filter:
       # 限制最长边；例如 1536 会跳过 3500x2333 / 3744x4959 这类大图。
-      max_long_edge: 1536
+      max_long_edge: 1980
 
 pipeline:
   steps: [generate]

@@ -5,7 +5,7 @@ services:
       dockerfile: deploy/pipeline/Dockerfile
     container_name: dataengine-pipeline
     working_dir: /workspace
-    restart: always
+    restart: 'no'
     init: true
     network_mode: host
     stop_signal: SIGTERM
