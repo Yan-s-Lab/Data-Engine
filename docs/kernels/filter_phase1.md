@@ -6,6 +6,7 @@
 
 入口脚本：
 - `filter/run_filter.py`
+- 当前仅支持：`filter.mode=compose`（phase1 v1）
 
 ## 2. Phase 输入输出关系
 
