@@ -57,12 +57,12 @@ filter:
     model_id: google/siglip2-base-patch16-224
     # auto: 有 CUDA 就走 GPU，否则 CPU。
     device: auto
-    # SigLIP 推荐 siglip_sigmoid；若是 CLIP 常用 cosine。
-    prompt_score_mode: siglip_sigmoid
+    # 当前数据分布下 sigmoid 值域过小，改为 cosine 提高区分度。
+    prompt_score_mode: cosine
 
     # 正向任务语义（用于 prompt_score / prompt_margin）。
     # Filter 侧使用短关键词句更稳（generation 可继续用长模板）。
-    prompt_text: "a realistic photo of a human upper arm with clearly visible deltoid muscle, complete upper arm anatomy, and natural body proportion"
+    prompt_text: "human, upper arm, deltoid muscle, anatomically correct"
 
     # 负向语义（用于 margin：正向得分 - 负向最大得分）。
     negative_prompts:
@@ -106,5 +106,5 @@ filter:
       keep_top_k: 6
       review_rest: true
       guided_min_anchor: 0.85
-      guided_min_prompt: 0.0
+      guided_min_prompt: -1.0
       hard_reject: false
