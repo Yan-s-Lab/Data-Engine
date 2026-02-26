@@ -140,6 +140,13 @@ filter:
     # 上述条件都不满足时的兜底来源。
     fallback_source: semantic_anchor
 
+    # guided 样本可选融合：semantic_pair 与 prompt_score 加权。
+    guided_fusion:
+      enabled: true
+      method: weighted_sum # weighted_sum | geometric_mean | harmonic_mean
+      pair_weight: 0.8
+      prompt_weight: 0.2
+
     # 行内 prompt 字段名；存在时覆盖 clip.prompt_text。
     prompt_field: effective_prompt_text
 

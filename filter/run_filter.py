@@ -604,6 +604,33 @@ def build_phase1_semantic_scores(
     guided_source = str(phase1_cfg.get("guided_source", "semantic_pair")).strip().lower()
     prompt_only_source = str(phase1_cfg.get("prompt_only_source", "prompt_score")).strip().lower()
     fallback_source = str(phase1_cfg.get("fallback_source", "semantic_anchor")).strip().lower()
+    guided_fusion_cfg = dict(phase1_cfg.get("guided_fusion", {}))
+    guided_fusion_enabled = bool(guided_fusion_cfg.get("enabled", False))
+    guided_fusion_method = str(guided_fusion_cfg.get("method", "weighted_sum")).strip().lower()
+    pair_weight = float(guided_fusion_cfg.get("pair_weight", 0.7))
+    prompt_weight = float(guided_fusion_cfg.get("prompt_weight", 0.3))
+    w_sum = pair_weight + prompt_weight
+    if w_sum <= 0.0:
+        pair_weight = 1.0
+        prompt_weight = 0.0
+    else:
+        pair_weight = pair_weight / w_sum
+        prompt_weight = prompt_weight / w_sum
+
+    def _fuse_guided_score(pair_score: float, prompt_score: float) -> float:
+        a = max(0.0, min(1.0, pair_score))
+        b = max(0.0, min(1.0, prompt_score))
+        if guided_fusion_method == "geometric_mean":
+            eps = 1e-12
+            return float((max(eps, a) ** pair_weight) * (max(eps, b) ** prompt_weight))
+        if guided_fusion_method == "harmonic_mean":
+            eps = 1e-12
+            denom = (pair_weight / max(eps, a)) + (prompt_weight / max(eps, b))
+            if denom <= 0.0:
+                return 0.0
+            return float(1.0 / denom)
+        # default weighted fusion
+        return float(pair_weight * a + prompt_weight * b)
 
     out: Dict[str, Dict[str, Any]] = {}
     guided_count = 0
@@ -625,8 +652,14 @@ def build_phase1_semantic_scores(
         if is_guided and guided_source == "semantic_pair":
             pair = paired_scores.get(sid, {})
             if float(pair.get("s_semantic_pair_hit", 0.0)) > 0.0:
-                selected_source = "semantic_pair"
-                value = float(pair.get("s_semantic_pair", 0.0))
+                pair_val = float(pair.get("s_semantic_pair", 0.0))
+                if guided_fusion_enabled:
+                    selected_source = "semantic_pair_fused"
+                    prompt_val = float(prompt_scores.get(sid, 0.0))
+                    value = _fuse_guided_score(pair_score=pair_val, prompt_score=prompt_val)
+                else:
+                    selected_source = "semantic_pair"
+                    value = pair_val
         elif (not is_guided) and str(row.get("source", "")) == "synthetic" and prompt_only_source == "prompt_score":
             selected_source = "prompt_score"
             value = float(prompt_scores.get(sid, 0.0))
@@ -650,6 +683,12 @@ def build_phase1_semantic_scores(
         "guided_source": guided_source,
         "prompt_only_source": prompt_only_source,
         "fallback_source": fallback_source,
+        "guided_fusion": {
+            "enabled": guided_fusion_enabled,
+            "method": guided_fusion_method,
+            "pair_weight": pair_weight,
+            "prompt_weight": prompt_weight,
+        },
         "guided_synth_count": guided_count,
         "prompt_only_synth_count": prompt_only_count,
         "source_counter": source_counter,
@@ -700,9 +739,15 @@ def _gate_applies_to_row(
         return False
     if src_not_in and source in set(src_not_in):
         return False
-    if p1_in and phase1_source not in set(p1_in):
+    phase1_candidates = {phase1_source}
+    if phase1_source.startswith("semantic_pair"):
+        phase1_candidates.add("semantic_pair")
+    if phase1_source.startswith("prompt_score"):
+        phase1_candidates.add("prompt_score")
+
+    if p1_in and not (set(p1_in) & phase1_candidates):
         return False
-    if p1_not_in and phase1_source in set(p1_not_in):
+    if p1_not_in and (set(p1_not_in) & phase1_candidates):
         return False
     return True
 
@@ -1146,10 +1191,12 @@ def run_composed_clip_filter(
         pair_info = paired_scores.get(sample_id, {})
         pair_anchor_sid = str(pair_info.get("anchor_sid_resolved", "")).strip()
         pair_miss_reason = str(pair_info.get("pair_miss_reason", "")).strip()
-        if s_phase1_semantic_source == "semantic_pair":
+        if s_phase1_semantic_source.startswith("semantic_pair"):
             compare_type = "image_vs_anchor_image"
             compare_target = pair_anchor_sid
             compare_remark = "guided synthetic matched anchor"
+            if s_phase1_semantic_source == "semantic_pair_fused":
+                compare_remark = "guided synthetic fused anchor+prompt score"
         elif s_phase1_semantic_source == "prompt_score":
             compare_type = "image_vs_prompt_text"
             compare_target = "effective_prompt_text"

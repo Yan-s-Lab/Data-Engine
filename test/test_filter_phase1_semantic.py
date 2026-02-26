@@ -14,6 +14,34 @@ from filter.run_filter import (
 
 
 class FilterPhase1SemanticTest(unittest.TestCase):
+    def test_guided_fusion_weighted_sum(self) -> None:
+        rows = [{"sample_id": "s_guided", "source": "synthetic", "anchor_real_sample_id": "r1"}]
+        semantic_scores = {"s_guided": {"s_semantic_anchor": 0.4}}
+        paired_scores = {"s_guided": {"s_semantic_pair": 0.9, "s_semantic_pair_hit": 1.0}}
+        prompt_scores = {"s_guided": 0.2}
+        phase1_cfg = {
+            "enabled": True,
+            "guided_source": "semantic_pair",
+            "prompt_only_source": "prompt_score",
+            "fallback_source": "semantic_anchor",
+            "guided_marker_fields": ["anchor_real_sample_id"],
+            "guided_fusion": {
+                "enabled": True,
+                "method": "weighted_sum",
+                "pair_weight": 0.8,
+                "prompt_weight": 0.2,
+            },
+        }
+        out, _ = build_phase1_semantic_scores(
+            rows=rows,
+            semantic_scores=semantic_scores,
+            paired_scores=paired_scores,
+            prompt_scores=prompt_scores,
+            phase1_cfg=phase1_cfg,
+        )
+        self.assertEqual(out["s_guided"]["s_phase1_semantic_source"], "semantic_pair_fused")
+        self.assertAlmostEqual(out["s_guided"]["s_phase1_semantic"], 0.76, places=6)
+
     def test_topk_review_selection(self) -> None:
         score_rows = [
             {"sample_id": "r1", "source": "real", "final_score": 1.0, "decision": "accept"},
@@ -44,6 +72,7 @@ class FilterPhase1SemanticTest(unittest.TestCase):
         gate_cfg = {"metric": "s_phase1_semantic", "phase1_sources": ["semantic_pair", "semantic_anchor"]}
         self.assertFalse(_gate_applies_to_row(gate_cfg=gate_cfg, row=row, phase1_source="prompt_score"))
         self.assertTrue(_gate_applies_to_row(gate_cfg=gate_cfg, row=row, phase1_source="semantic_pair"))
+        self.assertTrue(_gate_applies_to_row(gate_cfg=gate_cfg, row=row, phase1_source="semantic_pair_fused"))
 
     def test_phase1_routing_guided_prompt_and_fallback(self) -> None:
         rows = [
