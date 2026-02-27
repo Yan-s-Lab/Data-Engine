@@ -102,6 +102,5 @@ class GenerateManifestProfileTest(unittest.TestCase):
         self.assertEqual(row["guide_type"], "image_guided")
         self.assertEqual(row["synthetic_image_ids"], ["prompt_only_1_20260226_00001_"])
 
-
 if __name__ == "__main__":
     unittest.main()

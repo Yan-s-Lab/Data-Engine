@@ -1165,7 +1165,6 @@ def main() -> None:
         guide_type=str(manifest_cfg["guide_type"]),
         default_prompt_text=prompt_text_fallback,
     )
-
     synth_manifest = gen_dir / "synth_manifest.jsonl"
     trace_synth_manifest = gen_dir / str(manifest_cfg["trace_synth_name"])
 
@@ -1174,6 +1173,13 @@ def main() -> None:
         write_jsonl(synth_manifest, synth_rows)
     else:
         write_jsonl(synth_manifest, trace_synth_rows)
+
+    synthetic_job_ids = {
+        str(row.get("comfy_prompt_id", "")).strip()
+        for row in synth_rows
+        if str(row.get("comfy_prompt_id", "")).strip()
+    }
+    synthetic_job_count = len(synthetic_job_ids) if synthetic_job_ids else len(synth_rows)
 
     if bool(manifest_cfg["write_trace_artifacts"]):
         write_jsonl(trace_synth_manifest, trace_synth_rows)
@@ -1186,6 +1192,7 @@ def main() -> None:
         "synth_manifest": str(synth_manifest),
         "real_count": len(real_rows),
         "synthetic_count": len(synth_rows),
+        "synthetic_job_count": synthetic_job_count,
         "synth_per_real": int(gen_cfg.get("synth_per_real", 1)),
         "manifest_profile": profile,
         "manifest_guide_type": str(manifest_cfg["guide_type"]),

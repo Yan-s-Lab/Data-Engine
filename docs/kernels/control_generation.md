@@ -73,6 +73,10 @@
 - `config_ref`
 - `synthetic_image_ids`（同一个 ComfyUI prompt job 的输出 sample_id 数组）
 
+`report.json` 补充字段：
+- `synthetic_count`：落盘图片总数（逐图）
+- `synthetic_job_count`：ComfyUI prompt running 数（按 `comfy_prompt_id` 去重）
+
 ## 5. 运行命令
 
 ```bash
