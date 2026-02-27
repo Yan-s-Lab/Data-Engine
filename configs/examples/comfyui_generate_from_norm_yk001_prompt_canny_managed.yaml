@@ -15,6 +15,9 @@ generate:
   # max_synth_samples: 20
   # 基础随机种子；实际每个样本 seed = seed_base + sample_index。
   seed_base: 20260212
+  manifest:
+    # 手动指定本次任务类型：prompt 或 image_guided。
+    guide_type: "prompt,image_guided"
   comfyui:
     # ComfyUI HTTP API 地址。
     base_url: http://127.0.0.1:8188
@@ -53,7 +56,7 @@ generate:
       # 用于补充命名上下文（services_id/task_name 等）的 dataloader 配置。
       dataloader_config: configs/examples/dataloader_norm_test_generation_yk002.yaml
       # 输出文件前缀模板；anchor_image_stem 来自 anchor 图文件名（raw 优先）。
-      template: "{anchor_image_stem}_canny"
+      template: "{run_id}_{sample_index}_{seed}"
     anchor_images:
       # 可配置多个锚点图注入；本例仅 1 路 Canny 控制图。
       - name: canny_control
@@ -79,6 +82,8 @@ generate:
     anchor_filter:
       # 限制最长边；例如 1536 会跳过 3500x2333 / 3744x4959 这类大图。
       max_long_edge: 1536
+    # ComfyUI output 类型文件在宿主机上的路径。
+    output_dir: data/comfyui/output
 
 pipeline:
   steps: [generate]

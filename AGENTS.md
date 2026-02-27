@@ -89,4 +89,4 @@ Once the specified task is finished and recorded:
 **Do not continue working unless explicitly instructed.**
 
 ## 7. Currrent Enviroment
-conda name: "open_data_engine"
+conda name: "dataengine"

@@ -46,7 +46,7 @@ generate:
       # - filename_prefix.node_id + input_key: 写 SaveImage 前缀
       node_id: "9"
       input_key: filename_prefix
-      template: "{run_id}_{anchor_image_stem}"
+      template: "{run_id}__{anchor_image_stem}"
 
     anchor_images:
       # Implement -> API graph 注入（控制图像节点输入）

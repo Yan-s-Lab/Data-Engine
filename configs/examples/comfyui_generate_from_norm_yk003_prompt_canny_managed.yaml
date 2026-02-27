@@ -1,6 +1,6 @@
 run:
   # 本次生成任务的 run 标识；决定产物目录名。
-  run_id: yk003_prompt_canny_demo_managed_20260225_2_rerun
+  run_id: yk003_prompt_canny_demo_managed_20260227_test
   # 统一产物根目录，最终输出到 {artifacts_root}/{run_id}/...
   artifacts_root: artifacts/runs
 
@@ -10,11 +10,14 @@ generate:
   # DataLoader 输出的真实样本清单（hard-code：硬编码路径，换 run_id/环境时需同步更新）。
   real_manifest: artifacts/runs/dataloader_norm_test_generation_yk003/dataloader/real_manifest.jsonl
   # 每个 real 样本要生成的 synthetic 数量。
-  synth_per_real: 5
+  synth_per_real: 1
   # 全局生成上限（notice：demo 截断策略，当前最多只生成 20 张）。
   # max_synth_samples: 20
   # 基础随机种子；实际每个样本 seed = seed_base + sample_index。
   seed_base: 202702251
+  manifest:
+    # 手动指定本次任务类型：prompt 或 image_guided。
+    guide_type: "image_guided"
   comfyui:
     # ComfyUI HTTP API 地址。
     base_url: http://127.0.0.1:8188
