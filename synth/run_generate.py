@@ -420,6 +420,7 @@ def set_workflow_filename_prefix(
     anchor_row: Dict[str, Any],
     sample_idx: int,
     seed: int,
+    run_id: str = "",
 ) -> str:
     node_id = str(filename_prefix_cfg.get("node_id", "")).strip()
     if not node_id:
@@ -429,7 +430,12 @@ def set_workflow_filename_prefix(
     template = filename_prefix_cfg.get("template")
     dataloader_config_path = str(filename_prefix_cfg.get("dataloader_config", "")).strip()
 
-    context: Dict[str, Any] = {"sample_index": sample_idx, "seed": seed, **_simple_context(anchor_row)}
+    context: Dict[str, Any] = {
+        "run_id": str(run_id).strip(),
+        "sample_index": sample_idx,
+        "seed": seed,
+        **_simple_context(anchor_row),
+    }
     _inject_anchor_name_context(context, anchor_row)
     if dataloader_config_path:
         dataloader_cfg = load_config(Path(dataloader_config_path))
@@ -733,6 +739,7 @@ def generate_with_comfyui(
     synth_per_real = int(gen_cfg.get("synth_per_real", 1))
     max_synth = int(gen_cfg.get("max_synth_samples", 0))
     seed_base = int(gen_cfg.get("seed_base", 20260212))
+    run_id = str(gen_cfg.get("_run_id", "")).strip()
 
     target_count = len(eligible_real_rows) * max(synth_per_real, 0)
     if max_synth > 0:
@@ -768,6 +775,7 @@ def generate_with_comfyui(
             anchor_row=anchor,
             sample_idx=idx,
             seed=seed,
+            run_id=run_id,
         )
         effective_anchor_inputs = apply_anchor_images(
             workflow=workflow,
@@ -1069,6 +1077,10 @@ def main() -> None:
     config = load_config(Path(args.config))
     run_dir = resolve_run_dir(config)
     gen_cfg = config.get("generate", {})
+    if isinstance(gen_cfg, dict):
+        run_cfg = config.get("run", {})
+        if isinstance(run_cfg, dict):
+            gen_cfg["_run_id"] = str(run_cfg.get("run_id", "")).strip()
     manifest_cfg = _normalize_manifest_cfg(gen_cfg if isinstance(gen_cfg, dict) else {})
 
     real_manifest = Path(
