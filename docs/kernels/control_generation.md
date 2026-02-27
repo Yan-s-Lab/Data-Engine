@@ -55,6 +55,9 @@
   - `compat`：按需回退到历史全字段。
 - `generate.manifest.write_trace_artifacts`（默认 `false`）：
   - 写 `synth_trace_manifest.jsonl`、`mixed_trace_manifest.jsonl`。
+- `generate.comfyui.persist_outputs`（默认 `false`）：
+  - `false`：优先直接引用 `generate.comfyui.output_dir` 下的 ComfyUI 输出文件，不再复制到 `<run_dir>/generate/images`。
+  - `true`：下载并保存到 `<run_dir>/generate/images`。
 
 核心追踪字段（trace）：
 - `sample_id`, `source`, `image_path`
@@ -62,7 +65,8 @@
 - `guide_image`, `guide_type`
 - `width`, `height`
 - `config_ref`
-- `anchor_real_sample_id`
+- `synthetic_image_ids`（同一个 ComfyUI prompt job 的输出 sample_id 数组）
+- `anchor_real_sample_id`（可选；存在时写入）
 
 ## 5. 运行命令
 

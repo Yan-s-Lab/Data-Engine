@@ -1,6 +1,6 @@
 run:
   # 本次生成任务的 run 标识；决定产物目录名。
-  run_id: yk003_prompt_only_demo_managed_20260225_rerun
+  run_id: yk003_prompt_only_demo_managed_20260225_rerun_2
   # 统一产物根目录，最终输出到 {artifacts_root}/{run_id}/...
   artifacts_root: artifacts/runs
 
@@ -12,7 +12,7 @@ generate:
   # 每个 real 样本要生成的 synthetic 数量。
   synth_per_real: 1
   # 全局生成上限（notice：demo 截断策略，当前最多只生成 20 张）。
-  max_synth_samples: 200
+  max_synth_samples: 2
   # 基础随机种子；实际每个样本 seed = seed_base + sample_index。
   seed_base: 20260225
   comfyui:
@@ -51,7 +51,7 @@ generate:
       # SaveImage 文件名前缀输入字段。
       input_key: filename_prefix
       # 用于补充命名上下文（services_id/task_name 等）的 dataloader 配置。
-      dataloader_config: configs/examples/dataloader_norm_test_generation_yk003.yaml
+      dataloader_config: configs/examples/dataloader_norm_test_generation_yk003_managed.yaml
       # 输出文件前缀模板（纯 prompt 模式不依赖 anchor image 名）。
       template: "prompt_only_{sample_index}_{seed}"
     # 单任务超时秒数。
@@ -60,6 +60,10 @@ generate:
     poll_interval_sec: 1.0
     # 每个 prompt 最多下载多少张输出图。
     max_outputs_per_job: 1
+    # false: 直接引用 data/comfyui/output，不再复制到 run_dir/generate/images。
+    persist_outputs: false
+    # ComfyUI output 类型文件在宿主机上的路径。
+    output_dir: data/comfyui/output
     # pure prompt 模式不注入 anchor image，因此不需要 anchor_filter。
 
 pipeline:

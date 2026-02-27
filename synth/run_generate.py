@@ -48,15 +48,13 @@ def _normalize_manifest_cfg(gen_cfg: Dict[str, Any]) -> Dict[str, Any]:
 def _infer_guide_type(row: Dict[str, Any]) -> str:
     source = str(row.get("source", "")).strip().lower()
     if source == "real":
-        return "real_anchor"
+        return ""
 
-    has_anchor = bool(str(row.get("anchor_real_sample_id", "")).strip())
-    has_anchor_img = bool(str(row.get("anchor_real_image_path", "")).strip())
     has_anchor_input = bool(str(row.get("effective_anchor_input", "")).strip())
     has_anchor_inputs = isinstance(row.get("effective_anchor_inputs"), dict) and bool(row.get("effective_anchor_inputs"))
-    if has_anchor or has_anchor_img or has_anchor_input or has_anchor_inputs:
-        return "real_guided"
-    return "prompt_only"
+    if has_anchor_input or has_anchor_inputs:
+        return "image_guided"
+    return "prompt"
 
 
 def build_trace_rows(
@@ -69,12 +67,17 @@ def build_trace_rows(
     for row in rows:
         prompt_text = str(row.get("effective_prompt_text", "")).strip()
         if not prompt_text:
+            prompt_text = str(row.get("prompt_text", "")).strip()
+        if not prompt_text:
             prompt_text = default_prompt_text
 
         config_ref = str(row.get("comfy_prompt_graph_source", "")).strip() or default_config_ref
-        guide_image = str(row.get("anchor_real_image_path", "")).strip()
+        guide_image = str(row.get("effective_anchor_input", "")).strip()
         if not guide_image:
-            guide_image = str(row.get("effective_anchor_input", "")).strip()
+            inputs = row.get("effective_anchor_inputs")
+            if isinstance(inputs, dict) and inputs:
+                guide_image = str(next(iter(inputs.values()))).strip()
+        guide_type = _infer_guide_type(row)
 
         trace: Dict[str, Any] = {
             "sample_id": str(row.get("sample_id", "")),
@@ -83,13 +86,23 @@ def build_trace_rows(
             "width": row.get("width"),
             "height": row.get("height"),
             "prompt_text": prompt_text,
-            "effective_prompt_text": prompt_text,
             "seed": row.get("seed"),
             "guide_image": guide_image,
-            "guide_type": _infer_guide_type(row),
+            "guide_type": guide_type,
             "config_ref": config_ref,
-            "anchor_real_sample_id": str(row.get("anchor_real_sample_id", "")).strip(),
+            "synthetic_image_ids": (
+                [str(x) for x in row.get("synthetic_image_ids", [])]
+                if isinstance(row.get("synthetic_image_ids"), list)
+                else [str(row.get("sample_id", ""))]
+            ),
         }
+        anchor_sid = str(row.get("anchor_real_sample_id", "")).strip()
+        if anchor_sid:
+            trace["anchor_real_sample_id"] = anchor_sid
+        if not guide_image:
+            trace["guide_image"] = ""
+        if not guide_type:
+            trace["guide_type"] = ""
         trace_rows.append(trace)
     return trace_rows
 
@@ -215,10 +228,10 @@ def download_history_outputs(
     base_url: str,
     history_entry: Dict[str, Any],
     out_dir: Path,
-    sample_start_idx: int,
     max_outputs_per_job: int,
+    persist_outputs: bool,
+    comfy_output_dir: Path,
 ) -> List[Dict[str, Any]]:
-    out_dir.mkdir(parents=True, exist_ok=True)
     rows: List[Dict[str, Any]] = []
     outputs = history_entry.get("outputs", {})
     output_idx = 0
@@ -231,18 +244,30 @@ def download_history_outputs(
             filename = str(image["filename"])
             subfolder = str(image.get("subfolder", ""))
             img_type = str(image.get("type", "output"))
-            resp = requests.get(
-                f"{base_url}/view",
-                params={"filename": filename, "subfolder": subfolder, "type": img_type},
-                timeout=60,
-            )
-            resp.raise_for_status()
+            sample_id = Path(filename).stem
+            out_path = comfy_output_dir / subfolder / filename if subfolder else comfy_output_dir / filename
 
-            suffix = Path(filename).suffix or ".png"
-            sample_id = f"synth_{sample_start_idx + output_idx:05d}"
-            out_name = f"{sample_id}{suffix}"
-            out_path = out_dir / out_name
-            out_path.write_bytes(resp.content)
+            if persist_outputs:
+                out_dir.mkdir(parents=True, exist_ok=True)
+                resp = requests.get(
+                    f"{base_url}/view",
+                    params={"filename": filename, "subfolder": subfolder, "type": img_type},
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                out_path = out_dir / filename
+                out_path.write_bytes(resp.content)
+            elif not out_path.exists():
+                # Fallback: if output dir mapping is unavailable, keep pipeline usable by downloading.
+                out_dir.mkdir(parents=True, exist_ok=True)
+                resp = requests.get(
+                    f"{base_url}/view",
+                    params={"filename": filename, "subfolder": subfolder, "type": img_type},
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                out_path = out_dir / filename
+                out_path.write_bytes(resp.content)
 
             rows.append(
                 {
@@ -693,6 +718,8 @@ def generate_with_comfyui(
     seed_node_id = str(comfy_cfg.get("seed_node_id", ""))
     seed_input_key = str(comfy_cfg.get("seed_input_key", "seed"))
     max_outputs_per_job = int(comfy_cfg.get("max_outputs_per_job", 1))
+    persist_outputs = bool(comfy_cfg.get("persist_outputs", False))
+    comfy_output_dir = Path(str(comfy_cfg.get("output_dir", "data/comfyui/output")).strip() or "data/comfyui/output")
     client_id = str(comfy_cfg.get("client_id", "")).strip() or str(uuid.uuid4())
     extra_data = comfy_cfg.get("extra_data", {})
     if extra_data is None:
@@ -792,16 +819,18 @@ def generate_with_comfyui(
         current_local_idx: int,
     ) -> int:
         next_local_idx = current_local_idx
+        job_image_ids = [str(item.get("sample_id", "")).strip() for item in out_rows if str(item.get("sample_id", "")).strip()]
         for row in out_rows:
             if next_local_idx >= target_count:
                 break
             row["anchor_real_sample_id"] = meta["anchor"].get("sample_id")
-            row["anchor_real_image_path"] = meta["anchor"].get("image_path")
             row["comfy_prompt_id"] = meta["prompt_id"]
             row["seed"] = meta["seed"]
             row["comfy_prompt_graph_source"] = prompt_graph_source
+            row["synthetic_image_ids"] = job_image_ids
             if meta["effective_prompt_text"]:
                 row["effective_prompt_text"] = meta["effective_prompt_text"]
+                row["prompt_text"] = meta["effective_prompt_text"]
             if meta["effective_filename_prefix"]:
                 row["effective_filename_prefix"] = meta["effective_filename_prefix"]
             effective_anchor_inputs = meta["effective_anchor_inputs"]
@@ -920,8 +949,9 @@ def generate_with_comfyui(
                         base_url=base_url,
                         history_entry=history_entry,
                         out_dir=img_dir,
-                        sample_start_idx=local_idx,
                         max_outputs_per_job=max_outputs_per_job,
+                        persist_outputs=persist_outputs,
+                        comfy_output_dir=comfy_output_dir,
                     )
                     if out_rows:
                         local_idx = append_rows(out_rows, meta, local_idx)
@@ -985,8 +1015,9 @@ def generate_with_comfyui(
                 base_url=base_url,
                 history_entry=history_entry,
                 out_dir=img_dir,
-                sample_start_idx=local_idx,
                 max_outputs_per_job=max_outputs_per_job,
+                persist_outputs=persist_outputs,
+                comfy_output_dir=comfy_output_dir,
             )
             if out_rows:
                 local_idx = append_rows(out_rows, meta, local_idx)
@@ -1074,9 +1105,9 @@ def main() -> None:
     gen_dir = run_dir / "generate"
     img_dir = gen_dir / "images"
     gen_dir.mkdir(parents=True, exist_ok=True)
-    img_dir.mkdir(parents=True, exist_ok=True)
 
     if backend == "local_stub":
+        img_dir.mkdir(parents=True, exist_ok=True)
         synth_rows = generate_with_local_stub(real_rows, gen_cfg, img_dir)
     elif backend == "comfyui":
         synth_rows = generate_with_comfyui(real_rows, gen_cfg, img_dir)
