@@ -15,12 +15,12 @@ from filter.run_filter import (
 class FilterPhase1SemanticTest(unittest.TestCase):
     def test_phase1_v1_scoring_guided_and_prompt_only(self) -> None:
         rows = [
-            {"sample_id": "s_guided", "source": "synthetic", "anchor_real_sample_id": "r1"},
+            {"sample_id": "s_guided", "source": "synthetic", "guide_image_id": "r1"},
             {"sample_id": "s_prompt", "source": "synthetic"},
         ]
         paired_scores = {"s_guided": {"s_semantic_pair": 0.9, "s_semantic_pair_hit": 1.0}}
         prompt_scores = {"s_guided": 0.2, "s_prompt": 0.8}
-        phase1_cfg = {"enabled": True, "guided_marker_fields": ["anchor_real_sample_id"], "guided_w_anchor": 0.8, "guided_w_prompt": 0.2}
+        phase1_cfg = {"enabled": True, "guided_marker_fields": ["guide_image_id"], "guided_w_anchor": 0.8, "guided_w_prompt": 0.2}
         out, state = build_phase1_semantic_scores(rows=rows, semantic_scores={}, paired_scores=paired_scores, prompt_scores=prompt_scores, phase1_cfg=phase1_cfg)
         self.assertEqual(out["s_guided"]["phase1_route"], "guided")
         self.assertAlmostEqual(out["s_guided"]["s_anchor"], 0.9, places=6)

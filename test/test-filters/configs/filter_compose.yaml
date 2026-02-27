@@ -9,7 +9,7 @@ filter:
 
   # 输入 jsonl；每行至少要有 sample_id/source/image_path。
   # source 通常是 real datasets 或者指 参与后续引导生成的 raw data。
-  # phase1_semantic 若要启用 guided 路由，需要每行带 anchor_real_sample_id 等字段（见下方配置）。
+  # phase1_semantic 若要启用 guided 路由，需要每行带 guide_image_id 等字段（见下方配置）。
   input_manifest: test/test-filters/generate/mixed_manifest.jsonl
   # 自动生成 input_manifest（替代手写 jsonl）。
   # 生效条件：enabled=true 且 input_manifest 不存在，或 force_rebuild=true。
@@ -41,7 +41,7 @@ filter:
         # 例：yk-..._0001_canny_0001 -> anchor=yk-..._0001
         stem_pattern: "^(?P<anchor>.+)_canny_[0-9]+$"
         anchor_template: "{anchor}_real"
-        anchor_field: anchor_real_sample_id
+        anchor_field: guide_image_id
         strict_anchor: true
 
   # true 时，source=real 的样本最终强制 accept（不会被过滤掉）。
@@ -89,14 +89,14 @@ filter:
 
     # 判断 synthetic 是否 guided 用到的字段（任一字段有值即可视为 guided）。
     guided_marker_fields:
-      - anchor_real_sample_id
+      - guide_image_id
       - anchor_real_image_path
       - effective_anchor_input
       - effective_anchor_inputs
 
     # paired semantic 查 anchor sid 的字段优先级。
     anchor_sid_fields:
-      - anchor_real_sample_id
+      - guide_image_id
 
   policy:
     decision: phase1_v1

@@ -118,9 +118,9 @@ def compute_paired_anchor_semantic_scores(
     """
     Pair-wise semantic score for real-guided synthetic samples:
       s_pair(x) = Sim(E(x), E(anchor(x)))
-    where anchor(x) is resolved from row fields, typically `anchor_real_sample_id`.
+    where anchor(x) is resolved from row fields, typically `guide_image_id`.
     """
-    anchor_sid_fields = [str(x) for x in cfg.get("anchor_sid_fields", ["anchor_real_sample_id"])]
+    anchor_sid_fields = [str(x) for x in cfg.get("anchor_sid_fields", ["guide_image_id", "anchor_real_sample_id"])]
 
     out: Dict[str, Dict[str, Any]] = {}
     hit = 0

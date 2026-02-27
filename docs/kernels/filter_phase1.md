@@ -64,11 +64,11 @@ python filter/run_filter.py \
 ## 6. 快速排查
 
 1. `guided_synth_count=0`
-- 检查 manifest 是否有 `anchor_real_sample_id` 等 guided 字段。
+- 检查 manifest 是否有 `guide_image_id` 等 guided 字段。
 
 2. `eligible_total` 偏低
 - 检查 `guided_min_anchor / guided_min_prompt` 是否过严。
-- 检查 guided 样本的 anchor 配对字段是否正确（`anchor_real_sample_id` 等）。
+- 检查 guided 样本的 anchor 配对字段是否正确（`guide_image_id` 等）。
 
 3. 出现 reject
 - 检查是否开启了 `policy.ranking_review.hard_reject=true`。

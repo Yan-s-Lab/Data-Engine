@@ -133,9 +133,11 @@ def build_manifest(
                 "reference_sample_id": chosen.get("sample_id"),
                 "reference_manifest_path": chosen.get("_manifest_path"),
                 "generation_mode": detect_generation_mode(chosen),
-                "anchor_real_sample_id": chosen.get("anchor_real_sample_id"),
+                "guide_image_id": chosen.get("guide_image_id", chosen.get("anchor_real_sample_id", "")),
                 "anchor_real_image_path": chosen.get("anchor_real_image_path"),
-                "guided_by_real": bool(str(chosen.get("anchor_real_sample_id", "")).strip()),
+                "guided_by_real": bool(
+                    str(chosen.get("guide_image_id", chosen.get("anchor_real_sample_id", ""))).strip()
+                ),
                 "effective_filename_prefix": chosen.get("effective_filename_prefix"),
                 "comfy_filename_ref": chosen.get("comfy_filename"),
             }
@@ -184,9 +186,11 @@ def build_manifest(
                     "reference_sample_id": ref.get("sample_id"),
                     "reference_manifest_path": ref.get("_manifest_path"),
                     "generation_mode": detect_generation_mode(ref),
-                    "anchor_real_sample_id": ref.get("anchor_real_sample_id"),
+                    "guide_image_id": ref.get("guide_image_id", ref.get("anchor_real_sample_id", "")),
                     "anchor_real_image_path": ref.get("anchor_real_image_path"),
-                    "guided_by_real": bool(str(ref.get("anchor_real_sample_id", "")).strip()),
+                    "guided_by_real": bool(
+                        str(ref.get("guide_image_id", ref.get("anchor_real_sample_id", ""))).strip()
+                    ),
                     "effective_filename_prefix": ref.get("effective_filename_prefix"),
                     "comfy_filename_ref": ref.get("comfy_filename"),
                 }
@@ -210,7 +214,7 @@ def build_manifest(
                 "reference_sample_id": "",
                 "reference_manifest_path": "",
                 "generation_mode": "unknown",
-                "anchor_real_sample_id": "",
+                "guide_image_id": "",
                 "anchor_real_image_path": "",
                 "guided_by_real": False,
                 "effective_filename_prefix": "",

@@ -94,7 +94,7 @@ def _build_synth_rows(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
         source = str(group.get("source", "synthetic")).strip() or "synthetic"
         sid_tpl = str(group.get("sample_id_template", "{stem}"))
         anchor_cfg = dict(group.get("anchor", {}))
-        anchor_field = str(anchor_cfg.get("field", "anchor_real_sample_id")).strip() or "anchor_real_sample_id"
+        anchor_field = str(anchor_cfg.get("field", "guide_image_id")).strip() or "guide_image_id"
         strict_anchor = bool(anchor_cfg.get("strict", False))
 
         for image_path in _image_paths(image_dir, patterns):
@@ -159,7 +159,7 @@ def _build_filename_driven_rows(builder_cfg: Dict[str, Any]) -> List[Dict[str, A
     synth_sid_tpl = str(synth_cfg.get("sample_id_template", "{stem}"))
     synth_pattern = str(synth_cfg.get("stem_pattern", "^(?P<anchor>.+)_[^_]+_[0-9]+$")).strip()
     synth_anchor_tpl = str(synth_cfg.get("anchor_template", "{anchor}_real"))
-    synth_anchor_field = str(synth_cfg.get("anchor_field", "anchor_real_sample_id")).strip() or "anchor_real_sample_id"
+    synth_anchor_field = str(synth_cfg.get("anchor_field", "guide_image_id")).strip() or "guide_image_id"
     synth_anchor_strict = bool(synth_cfg.get("strict_anchor", True))
     synth_re = re.compile(synth_pattern)
 

@@ -17,7 +17,7 @@ generate:
   seed_base: 20260225
   manifest:
     # 手动指定本次任务类型：prompt 或 image_guided。
-    guide_type: prompt
+    guide_type: "prompt,image_guided"
   comfyui:
     # ComfyUI HTTP API 地址。
     base_url: http://127.0.0.1:8188
@@ -56,7 +56,7 @@ generate:
       # 用于补充命名上下文（services_id/task_name 等）的 dataloader 配置。
       dataloader_config: configs/examples/dataloader_norm_test_generation_yk003_managed.yaml
       # 输出文件前缀模板（纯 prompt 模式不依赖 anchor image 名）。
-      template: "prompt_only_{sample_index}_{seed}"
+      template: "{run_id}_{sample_index}_{seed}"
     # 单任务超时秒数。
     timeout_sec: 1800
     # history 轮询间隔秒。

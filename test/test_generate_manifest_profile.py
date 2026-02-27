@@ -26,7 +26,7 @@ class GenerateManifestProfileTest(unittest.TestCase):
                 "height": 1024,
                 "seed": 11,
                 "effective_prompt_text": "demo prompt",
-                "anchor_real_sample_id": "real_0001",
+                "guide_image_id": "real_0001",
                 "effective_anchor_input": "data/comfyui/input/real_0001.png",
                 "comfy_prompt_graph_source": "configs/examples/comfyui/demo.json",
                 "synthetic_image_ids": ["prompt_only_0_20260225_00005_", "prompt_only_0_20260225_00006_"],

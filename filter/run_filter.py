@@ -285,6 +285,8 @@ def _normalize_generate_manifest_rows(rows: List[Dict[str, Any]]) -> List[Dict[s
             normalized["image_path"] = str(normalized.get("synthetic_image_path", "")).strip()
         if not str(normalized.get("source", "")).strip():
             normalized["source"] = "synthetic"
+        if not str(normalized.get("guide_image_id", "")).strip():
+            normalized["guide_image_id"] = str(normalized.get("anchor_real_sample_id", "")).strip()
         out.append(normalized)
     return out
 
@@ -295,6 +297,7 @@ def _is_real_guided_synth(row: Dict[str, Any], phase1_cfg: Dict[str, Any]) -> bo
     marker_fields = [str(x) for x in phase1_cfg.get(
         "guided_marker_fields",
         [
+            "guide_image_id",
             "anchor_real_sample_id",
             "anchor_real_image_path",
             "effective_anchor_input",

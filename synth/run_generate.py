@@ -668,7 +668,7 @@ def generate_with_local_stub(
                     "source": "synthetic",
                     "generation_backend": "local_stub",
                     "image_path": str(out_path),
-                    "anchor_real_sample_id": row.get("sample_id"),
+                    "guide_image_id": row.get("sample_id"),
                 }
             )
             synth_idx += 1
@@ -803,7 +803,7 @@ def generate_with_comfyui(
         for row in out_rows:
             if next_local_idx >= target_count:
                 break
-            row["anchor_real_sample_id"] = meta["anchor"].get("sample_id")
+            row["guide_image_id"] = meta["anchor"].get("sample_id")
             row["comfy_prompt_id"] = meta["prompt_id"]
             row["seed"] = meta["seed"]
             row["comfy_prompt_graph_source"] = prompt_graph_source
@@ -1035,7 +1035,7 @@ def enrich_synth_rows_with_dimensions(
             width = row.get("width")
             height = row.get("height")
 
-        anchor_id = str(row.get("anchor_real_sample_id", "")).strip()
+        anchor_id = str(row.get("guide_image_id", "")).strip()
         if not anchor_id:
             continue
         anchor_dim = real_dim_map.get(anchor_id)

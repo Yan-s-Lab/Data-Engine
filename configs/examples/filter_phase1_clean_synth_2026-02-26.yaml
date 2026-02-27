@@ -30,12 +30,12 @@ filter:
     prompt_metric: raw_cosine
     prompt_field: effective_prompt_text
     guided_marker_fields:
-      - anchor_real_sample_id
+      - guide_image_id
       - anchor_real_image_path
       - effective_anchor_input
       - effective_anchor_inputs
     anchor_sid_fields:
-      - anchor_real_sample_id
+      - guide_image_id
 
   policy:
     decision: phase1_v1
