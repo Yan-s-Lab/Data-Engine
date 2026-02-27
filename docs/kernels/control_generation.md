@@ -10,7 +10,7 @@
 ## 2. Phase 输入输出关系
 
 - 输入：
-  - `generate.real_manifest`（来自 dataloader）
+  - `generate.real_manifest`（来自 dataloader；`guide_type=prompt` 且无 anchor_images 时可省略）
   - `generate.comfyui.workflow`（API prompt graph）
   - prompt/seed/control 配置
 - 输出（默认 `manifest.profile=core`）：
@@ -40,6 +40,7 @@
 3. anchor 注入逻辑
 - `anchor_images[]` 可配置多路控制图注入。
 - 每一路可独立设定 `node_id/input_key/path_field/upload`。
+- 当配置 `anchor_image/anchor_images` 时，必须提供非空 `real_manifest`。
 
 4. 执行/超时逻辑
 - `non_blocking + max_inflight` 控制并发提交。
@@ -59,6 +60,9 @@
 - `generate.comfyui.persist_outputs`（默认 `false`）：
   - `false`：优先直接引用 `generate.comfyui.output_dir` 下的 ComfyUI 输出文件，不再复制到 `<run_dir>/generate/images`。
   - `true`：下载并保存到 `<run_dir>/generate/images`。
+- `generate.comfyui.max_outputs_per_job`：
+  - 控制每个 ComfyUI prompt job 读取多少张输出图。
+  - 若 workflow 设置了 latent `batch_size > 1`，该值需同步调大，否则会被本字段截断。
 
 核心追踪字段（trace）：
 - `synthetic_id`, `synthetic_image_name`, `synthetic_image_path`

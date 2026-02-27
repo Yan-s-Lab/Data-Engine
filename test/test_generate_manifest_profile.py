@@ -2,10 +2,34 @@ from __future__ import annotations
 
 import unittest
 
-from synth.run_generate import _normalize_manifest_cfg, build_synth_manifest_rows
+from synth.run_generate import (
+    _allow_prompt_only_without_real_manifest,
+    _normalize_manifest_cfg,
+    build_synth_manifest_rows,
+)
 
 
 class GenerateManifestProfileTest(unittest.TestCase):
+    def test_prompt_only_missing_real_manifest_allow_rule(self) -> None:
+        self.assertTrue(
+            _allow_prompt_only_without_real_manifest(
+                backend="comfyui",
+                guide_type="prompt",
+            )
+        )
+        self.assertFalse(
+            _allow_prompt_only_without_real_manifest(
+                backend="local_stub",
+                guide_type="prompt",
+            )
+        )
+        self.assertFalse(
+            _allow_prompt_only_without_real_manifest(
+                backend="comfyui",
+                guide_type="image_guided",
+            )
+        )
+
     def test_manifest_cfg_defaults(self) -> None:
         cfg = _normalize_manifest_cfg({})
         self.assertEqual(cfg["profile"], "core")
@@ -64,6 +88,7 @@ class GenerateManifestProfileTest(unittest.TestCase):
                 "source": "synthetic",
                 "image_path": "data/comfyui/output/prompt_only_1_20260226_00001_.png",
                 "prompt_text": "plain prompt",
+                "guide_image_id": None,
             }
         ]
         out = build_synth_manifest_rows(

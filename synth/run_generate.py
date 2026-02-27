@@ -48,6 +48,10 @@ def _normalize_manifest_cfg(gen_cfg: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _allow_prompt_only_without_real_manifest(*, backend: str, guide_type: str) -> bool:
+    return backend == "comfyui" and guide_type == "prompt"
+
+
 def build_synth_manifest_rows(
     rows: List[Dict[str, Any]],
     *,
@@ -67,6 +71,15 @@ def build_synth_manifest_rows(
         synthetic_id = str(row.get("sample_id", ""))
         image_path = str(row.get("image_path", ""))
 
+        guide_image_id_raw = row.get("guide_image_id")
+        guide_image_id = ""
+        if guide_image_id_raw is not None:
+            guide_image_id = str(guide_image_id_raw).strip()
+        if not guide_image_id:
+            legacy_anchor_id = row.get("anchor_real_sample_id")
+            if legacy_anchor_id is not None:
+                guide_image_id = str(legacy_anchor_id).strip()
+
         trace: Dict[str, Any] = {
             "synthetic_id": synthetic_id,
             "synthetic_image_name": Path(image_path).name if image_path else "",
@@ -75,10 +88,7 @@ def build_synth_manifest_rows(
             "height": row.get("height"),
             "prompt_text": prompt_text,
             "seed": row.get("seed"),
-            "guide_image_id": (
-                str(row.get("guide_image_id", "")).strip()
-                or str(row.get("anchor_real_sample_id", "")).strip()
-            ),
+            "guide_image_id": guide_image_id,
             "guide_type": guide_type,
             "config_ref": config_ref,
             "synthetic_image_ids": (
@@ -722,13 +732,30 @@ def generate_with_comfyui(
     if not isinstance(prompt_cfg, dict):
         raise ValueError("generate.comfyui.prompt must be a dict when provided")
     anchor_cfgs = normalize_anchor_configs(comfy_cfg)
-    eligible_real_rows, anchor_filter_stats = filter_anchor_rows_by_size(
-        real_rows=real_rows,
-        comfy_cfg=comfy_cfg,
-        anchor_cfgs=anchor_cfgs,
-    )
-    if not eligible_real_rows:
-        raise RuntimeError("all real anchors were skipped by generate.comfyui.anchor_filter")
+    if real_rows:
+        eligible_real_rows, anchor_filter_stats = filter_anchor_rows_by_size(
+            real_rows=real_rows,
+            comfy_cfg=comfy_cfg,
+            anchor_cfgs=anchor_cfgs,
+        )
+        if not eligible_real_rows:
+            raise RuntimeError("all real anchors were skipped by generate.comfyui.anchor_filter")
+    else:
+        if anchor_cfgs:
+            raise RuntimeError(
+                "generate.comfyui.anchor_image/anchor_images requires non-empty real_manifest"
+            )
+        eligible_real_rows = [{}]
+        anchor_filter_stats = {
+            "anchor_filter_enabled": False,
+            "anchor_total_count": 0,
+            "anchor_eligible_count": 0,
+            "anchor_skipped_count": 0,
+            "anchor_filter_max_width": 0,
+            "anchor_filter_max_height": 0,
+            "anchor_filter_max_long_edge": 0,
+            "prompt_only_no_real_manifest": True,
+        }
     filename_prefix_cfg = comfy_cfg.get("filename_prefix", {})
     if filename_prefix_cfg is None:
         filename_prefix_cfg = {}
@@ -745,9 +772,13 @@ def generate_with_comfyui(
     seed_base = int(gen_cfg.get("seed_base", 20260212))
     run_id = str(gen_cfg.get("_run_id", "")).strip()
 
-    target_count = len(eligible_real_rows) * max(synth_per_real, 0)
-    if max_synth > 0:
-        target_count = min(target_count, max_synth) if target_count > 0 else max_synth
+    virtual_anchor_mode = (not real_rows) and (len(anchor_cfgs) == 0)
+    if virtual_anchor_mode:
+        target_count = max_synth if max_synth > 0 else max(synth_per_real, 1)
+    else:
+        target_count = len(eligible_real_rows) * max(synth_per_real, 0)
+        if max_synth > 0:
+            target_count = min(target_count, max_synth) if target_count > 0 else max_synth
     if target_count <= 0:
         raise ValueError("target synthetic sample count must be > 0")
 
@@ -815,7 +846,8 @@ def generate_with_comfyui(
         for row in out_rows:
             if next_local_idx >= target_count:
                 break
-            row["guide_image_id"] = meta["anchor"].get("sample_id")
+            anchor_sample_id = meta["anchor"].get("sample_id")
+            row["guide_image_id"] = str(anchor_sample_id).strip() if anchor_sample_id is not None else ""
             row["comfy_prompt_id"] = meta["prompt_id"]
             row["seed"] = meta["seed"]
             row["comfy_prompt_graph_source"] = prompt_graph_source
@@ -1087,16 +1119,25 @@ def main() -> None:
             gen_cfg["_run_id"] = str(run_cfg.get("run_id", "")).strip()
     manifest_cfg = _normalize_manifest_cfg(gen_cfg if isinstance(gen_cfg, dict) else {})
 
+    backend = str(gen_cfg.get("backend", "local_stub"))
     real_manifest = Path(
         str(gen_cfg.get("real_manifest", run_dir / "dataloader" / "real_manifest.jsonl"))
     )
-    if not real_manifest.exists():
+    allow_empty_real_manifest = _allow_prompt_only_without_real_manifest(
+        backend=backend,
+        guide_type=str(manifest_cfg["guide_type"]),
+    )
+    real_rows: List[Dict[str, Any]] = []
+    if real_manifest.exists():
+        real_rows = read_jsonl(real_manifest)
+        if not real_rows and not allow_empty_real_manifest:
+            raise RuntimeError(f"empty real manifest: {real_manifest}")
+    elif not allow_empty_real_manifest:
         raise FileNotFoundError(f"missing real manifest: {real_manifest}")
-
-    real_rows = read_jsonl(real_manifest)
-    if not real_rows:
-        raise RuntimeError(f"empty real manifest: {real_manifest}")
-    backend = str(gen_cfg.get("backend", "local_stub"))
+    else:
+        print(
+            f"[generate] prompt-only mode without real_manifest enabled: {real_manifest}"
+        )
 
     gen_dir = run_dir / "generate"
     img_dir = gen_dir / "images"
@@ -1141,7 +1182,7 @@ def main() -> None:
         "stage": "generate",
         "run_dir": str(run_dir),
         "backend": backend,
-        "real_manifest": str(real_manifest),
+        "real_manifest": str(real_manifest) if real_manifest.exists() else "",
         "synth_manifest": str(synth_manifest),
         "real_count": len(real_rows),
         "synthetic_count": len(synth_rows),
