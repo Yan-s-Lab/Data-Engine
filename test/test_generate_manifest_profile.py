@@ -8,9 +8,8 @@ from synth.run_generate import _normalize_manifest_cfg, build_trace_rows
 class GenerateManifestProfileTest(unittest.TestCase):
     def test_manifest_cfg_defaults(self) -> None:
         cfg = _normalize_manifest_cfg({})
-        self.assertEqual(cfg["profile"], "compat")
-        self.assertTrue(cfg["write_trace_artifacts"])
-        self.assertTrue(cfg["write_compat_when_core"])
+        self.assertEqual(cfg["profile"], "core")
+        self.assertFalse(cfg["write_trace_artifacts"])
 
     def test_manifest_cfg_rejects_invalid_profile(self) -> None:
         with self.assertRaises(ValueError):

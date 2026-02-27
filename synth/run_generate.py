@@ -33,22 +33,15 @@ def _normalize_manifest_cfg(gen_cfg: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(manifest_cfg, dict):
         raise ValueError("generate.manifest must be a mapping when provided")
 
-    profile = str(manifest_cfg.get("profile", "compat")).strip().lower() or "compat"
+    profile = str(manifest_cfg.get("profile", "core")).strip().lower() or "core"
     if profile not in {"compat", "core"}:
         raise ValueError("generate.manifest.profile must be one of: compat, core")
 
     out = dict(manifest_cfg)
     out["profile"] = profile
-    out["write_trace_artifacts"] = bool(manifest_cfg.get("write_trace_artifacts", True))
-    out["write_compat_when_core"] = bool(manifest_cfg.get("write_compat_when_core", True))
+    out["write_trace_artifacts"] = bool(manifest_cfg.get("write_trace_artifacts", False))
     out["trace_synth_name"] = str(manifest_cfg.get("trace_synth_name", "synth_trace_manifest.jsonl")).strip() or "synth_trace_manifest.jsonl"
     out["trace_mixed_name"] = str(manifest_cfg.get("trace_mixed_name", "mixed_trace_manifest.jsonl")).strip() or "mixed_trace_manifest.jsonl"
-    out["compat_synth_name_when_core"] = str(
-        manifest_cfg.get("compat_synth_name_when_core", "synth_debug_manifest.jsonl")
-    ).strip() or "synth_debug_manifest.jsonl"
-    out["compat_mixed_name_when_core"] = str(
-        manifest_cfg.get("compat_mixed_name_when_core", "mixed_debug_manifest.jsonl")
-    ).strip() or "mixed_debug_manifest.jsonl"
     return out
 
 
@@ -1117,17 +1110,12 @@ def main() -> None:
     trace_mixed_manifest = gen_dir / str(manifest_cfg["trace_mixed_name"])
 
     profile = str(manifest_cfg["profile"])
-    if profile == "core":
-        write_jsonl(synth_manifest, trace_synth_rows)
-        write_jsonl(mixed_manifest, trace_mixed_rows)
-        if bool(manifest_cfg["write_compat_when_core"]):
-            compat_synth_manifest = gen_dir / str(manifest_cfg["compat_synth_name_when_core"])
-            compat_mixed_manifest = gen_dir / str(manifest_cfg["compat_mixed_name_when_core"])
-            write_jsonl(compat_synth_manifest, synth_rows)
-            write_jsonl(compat_mixed_manifest, mixed_rows)
-    else:
+    if profile == "compat":
         write_jsonl(synth_manifest, synth_rows)
         write_jsonl(mixed_manifest, mixed_rows)
+    else:
+        write_jsonl(synth_manifest, trace_synth_rows)
+        write_jsonl(mixed_manifest, trace_mixed_rows)
 
     if bool(manifest_cfg["write_trace_artifacts"]):
         write_jsonl(trace_synth_manifest, trace_synth_rows)
@@ -1150,9 +1138,6 @@ def main() -> None:
     if bool(manifest_cfg["write_trace_artifacts"]):
         report["trace_synth_manifest"] = str(trace_synth_manifest)
         report["trace_mixed_manifest"] = str(trace_mixed_manifest)
-    if profile == "core" and bool(manifest_cfg["write_compat_when_core"]):
-        report["compat_synth_manifest"] = str(gen_dir / str(manifest_cfg["compat_synth_name_when_core"]))
-        report["compat_mixed_manifest"] = str(gen_dir / str(manifest_cfg["compat_mixed_name_when_core"]))
     if backend == "comfyui":
         comfy_cfg = gen_cfg.get("comfyui", {})
         if isinstance(comfy_cfg, dict):
