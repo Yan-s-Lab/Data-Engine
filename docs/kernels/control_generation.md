@@ -7,6 +7,11 @@
 入口脚本：
 - `synth/run_generate.py`
 
+主要实现拆分：
+- `synth/comfyui_client.py`：ComfyUI 请求、等待、输出下载
+- `synth/comfyui_workflow.py`：workflow 校验与节点注入、anchor 过滤
+- `synth/generate_manifest.py`：manifest 配置与产物写入
+
 ## 2. Phase 输入输出关系
 
 - 输入：
