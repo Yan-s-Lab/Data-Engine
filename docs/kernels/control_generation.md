@@ -13,9 +13,11 @@
   - `generate.real_manifest`（来自 dataloader）
   - `generate.comfyui.workflow`（API prompt graph）
   - prompt/seed/control 配置
-- 输出：
-  - `<run_dir>/generate/synth_manifest.jsonl`
-  - `<run_dir>/generate/mixed_manifest.jsonl`
+- 输出（默认 `manifest.profile=compat`）：
+  - `<run_dir>/generate/synth_manifest.jsonl`（兼容全字段）
+  - `<run_dir>/generate/mixed_manifest.jsonl`（兼容全字段）
+  - `<run_dir>/generate/synth_trace_manifest.jsonl`（核心追踪字段）
+  - `<run_dir>/generate/mixed_trace_manifest.jsonl`（核心追踪字段，real+synth）
   - `<run_dir>/generate/report.json`
 - 下游关系：
   - `filter` 推荐直接读取 `mixed_manifest.jsonl`
@@ -48,6 +50,23 @@
 
 5. 文件名前缀逻辑
 - `filename_prefix.template` 可使用 `anchor_image_stem`、`sample_index`、`seed` 等变量。
+
+6. manifest 分层（core vs capabilities）
+- `generate.manifest.profile: compat|core`（默认 `compat`）
+  - `compat`：`synth_manifest/mixed_manifest` 保持历史全字段。
+  - `core`：`synth_manifest/mixed_manifest` 切为最小追踪字段。
+- `generate.manifest.write_trace_artifacts`（默认 `true`）：
+  - 写 `synth_trace_manifest.jsonl`、`mixed_trace_manifest.jsonl`。
+- `generate.manifest.write_compat_when_core`（默认 `true`）：
+  - 当 `profile=core` 时，额外写 `synth_debug_manifest.jsonl`、`mixed_debug_manifest.jsonl` 作为兼容回退。
+
+核心追踪字段（trace）：
+- `sample_id`, `source`, `image_path`
+- `prompt_text`, `seed`
+- `guide_image`, `guide_type`
+- `width`, `height`
+- `config_ref`
+- `anchor_real_sample_id`
 
 ## 5. 运行命令
 

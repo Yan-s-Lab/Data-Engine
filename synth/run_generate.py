@@ -26,6 +26,81 @@ from common.config_io import load_config, resolve_run_dir
 from common.manifest_io import read_jsonl, write_json, write_jsonl
 
 
+def _normalize_manifest_cfg(gen_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    manifest_cfg = gen_cfg.get("manifest", {})
+    if manifest_cfg is None:
+        manifest_cfg = {}
+    if not isinstance(manifest_cfg, dict):
+        raise ValueError("generate.manifest must be a mapping when provided")
+
+    profile = str(manifest_cfg.get("profile", "compat")).strip().lower() or "compat"
+    if profile not in {"compat", "core"}:
+        raise ValueError("generate.manifest.profile must be one of: compat, core")
+
+    out = dict(manifest_cfg)
+    out["profile"] = profile
+    out["write_trace_artifacts"] = bool(manifest_cfg.get("write_trace_artifacts", True))
+    out["write_compat_when_core"] = bool(manifest_cfg.get("write_compat_when_core", True))
+    out["trace_synth_name"] = str(manifest_cfg.get("trace_synth_name", "synth_trace_manifest.jsonl")).strip() or "synth_trace_manifest.jsonl"
+    out["trace_mixed_name"] = str(manifest_cfg.get("trace_mixed_name", "mixed_trace_manifest.jsonl")).strip() or "mixed_trace_manifest.jsonl"
+    out["compat_synth_name_when_core"] = str(
+        manifest_cfg.get("compat_synth_name_when_core", "synth_debug_manifest.jsonl")
+    ).strip() or "synth_debug_manifest.jsonl"
+    out["compat_mixed_name_when_core"] = str(
+        manifest_cfg.get("compat_mixed_name_when_core", "mixed_debug_manifest.jsonl")
+    ).strip() or "mixed_debug_manifest.jsonl"
+    return out
+
+
+def _infer_guide_type(row: Dict[str, Any]) -> str:
+    source = str(row.get("source", "")).strip().lower()
+    if source == "real":
+        return "real_anchor"
+
+    has_anchor = bool(str(row.get("anchor_real_sample_id", "")).strip())
+    has_anchor_img = bool(str(row.get("anchor_real_image_path", "")).strip())
+    has_anchor_input = bool(str(row.get("effective_anchor_input", "")).strip())
+    has_anchor_inputs = isinstance(row.get("effective_anchor_inputs"), dict) and bool(row.get("effective_anchor_inputs"))
+    if has_anchor or has_anchor_img or has_anchor_input or has_anchor_inputs:
+        return "real_guided"
+    return "prompt_only"
+
+
+def build_trace_rows(
+    rows: List[Dict[str, Any]],
+    *,
+    default_config_ref: str,
+    default_prompt_text: str = "",
+) -> List[Dict[str, Any]]:
+    trace_rows: List[Dict[str, Any]] = []
+    for row in rows:
+        prompt_text = str(row.get("effective_prompt_text", "")).strip()
+        if not prompt_text:
+            prompt_text = default_prompt_text
+
+        config_ref = str(row.get("comfy_prompt_graph_source", "")).strip() or default_config_ref
+        guide_image = str(row.get("anchor_real_image_path", "")).strip()
+        if not guide_image:
+            guide_image = str(row.get("effective_anchor_input", "")).strip()
+
+        trace: Dict[str, Any] = {
+            "sample_id": str(row.get("sample_id", "")),
+            "source": str(row.get("source", "")),
+            "image_path": str(row.get("image_path", "")),
+            "width": row.get("width"),
+            "height": row.get("height"),
+            "prompt_text": prompt_text,
+            "effective_prompt_text": prompt_text,
+            "seed": row.get("seed"),
+            "guide_image": guide_image,
+            "guide_type": _infer_guide_type(row),
+            "config_ref": config_ref,
+            "anchor_real_sample_id": str(row.get("anchor_real_sample_id", "")).strip(),
+        }
+        trace_rows.append(trace)
+    return trace_rows
+
+
 def synthesize_image(src_path: Path, out_path: Path, seed: int) -> None:
     rng = random.Random(seed)
     with Image.open(src_path) as img:
@@ -990,6 +1065,7 @@ def main() -> None:
     config = load_config(Path(args.config))
     run_dir = resolve_run_dir(config)
     gen_cfg = config.get("generate", {})
+    manifest_cfg = _normalize_manifest_cfg(gen_cfg if isinstance(gen_cfg, dict) else {})
 
     real_manifest = Path(
         str(gen_cfg.get("real_manifest", run_dir / "dataloader" / "real_manifest.jsonl"))
@@ -1017,11 +1093,45 @@ def main() -> None:
     size_stats = enrich_synth_rows_with_dimensions(synth_rows, real_rows)
 
     mixed_rows = [*real_rows, *synth_rows]
+    prompt_text_fallback = ""
+    comfy_cfg = gen_cfg.get("comfyui", {})
+    if isinstance(comfy_cfg, dict):
+        prompt_cfg = comfy_cfg.get("prompt", {})
+        if isinstance(prompt_cfg, dict):
+            prompt_text_fallback = str(prompt_cfg.get("text", "")).strip()
+    trace_synth_rows = build_trace_rows(
+        synth_rows,
+        default_config_ref=str(Path(args.config).resolve()),
+        default_prompt_text=prompt_text_fallback,
+    )
+    trace_real_rows = build_trace_rows(
+        real_rows,
+        default_config_ref=str(real_manifest),
+        default_prompt_text="",
+    )
+    trace_mixed_rows = [*trace_real_rows, *trace_synth_rows]
 
     synth_manifest = gen_dir / "synth_manifest.jsonl"
     mixed_manifest = gen_dir / "mixed_manifest.jsonl"
-    write_jsonl(synth_manifest, synth_rows)
-    write_jsonl(mixed_manifest, mixed_rows)
+    trace_synth_manifest = gen_dir / str(manifest_cfg["trace_synth_name"])
+    trace_mixed_manifest = gen_dir / str(manifest_cfg["trace_mixed_name"])
+
+    profile = str(manifest_cfg["profile"])
+    if profile == "core":
+        write_jsonl(synth_manifest, trace_synth_rows)
+        write_jsonl(mixed_manifest, trace_mixed_rows)
+        if bool(manifest_cfg["write_compat_when_core"]):
+            compat_synth_manifest = gen_dir / str(manifest_cfg["compat_synth_name_when_core"])
+            compat_mixed_manifest = gen_dir / str(manifest_cfg["compat_mixed_name_when_core"])
+            write_jsonl(compat_synth_manifest, synth_rows)
+            write_jsonl(compat_mixed_manifest, mixed_rows)
+    else:
+        write_jsonl(synth_manifest, synth_rows)
+        write_jsonl(mixed_manifest, mixed_rows)
+
+    if bool(manifest_cfg["write_trace_artifacts"]):
+        write_jsonl(trace_synth_manifest, trace_synth_rows)
+        write_jsonl(trace_mixed_manifest, trace_mixed_rows)
 
     report = {
         "stage": "generate",
@@ -1034,8 +1144,15 @@ def main() -> None:
         "synthetic_count": len(synth_rows),
         "mixed_count": len(mixed_rows),
         "synth_per_real": int(gen_cfg.get("synth_per_real", 1)),
+        "manifest_profile": profile,
         **size_stats,
     }
+    if bool(manifest_cfg["write_trace_artifacts"]):
+        report["trace_synth_manifest"] = str(trace_synth_manifest)
+        report["trace_mixed_manifest"] = str(trace_mixed_manifest)
+    if profile == "core" and bool(manifest_cfg["write_compat_when_core"]):
+        report["compat_synth_manifest"] = str(gen_dir / str(manifest_cfg["compat_synth_name_when_core"]))
+        report["compat_mixed_manifest"] = str(gen_dir / str(manifest_cfg["compat_mixed_name_when_core"]))
     if backend == "comfyui":
         comfy_cfg = gen_cfg.get("comfyui", {})
         if isinstance(comfy_cfg, dict):
