@@ -2,7 +2,7 @@
 
 ## 1. 作用
 
-基于 real anchors manifest + ComfyUI workflow 生成 synthetic，并输出可直接给 filter 的 `mixed_manifest.jsonl`。
+基于 real anchors manifest + ComfyUI workflow 生成 synthetic，并输出 `synth_manifest.jsonl`。
 
 入口脚本：
 - `synth/run_generate.py`
@@ -15,10 +15,9 @@
   - prompt/seed/control 配置
 - 输出（默认 `manifest.profile=core`）：
   - `<run_dir>/generate/synth_manifest.jsonl`（核心追踪字段）
-  - `<run_dir>/generate/mixed_manifest.jsonl`（核心追踪字段，real+synth）
   - `<run_dir>/generate/report.json`
 - 下游关系：
-  - `filter` 推荐直接读取 `mixed_manifest.jsonl`
+  - `filter` 可读取 `synth_manifest.jsonl`（自动发现）
 
 ## 3. 推荐配置
 
@@ -51,22 +50,23 @@
 
 6. manifest 分层（core vs capabilities）
 - `generate.manifest.profile: compat|core`（默认 `core`）
-  - `core`：`synth_manifest/mixed_manifest` 使用最小追踪字段（默认）。
+  - `core`：`synth_manifest` 使用最小追踪字段（默认）。
   - `compat`：按需回退到历史全字段。
 - `generate.manifest.write_trace_artifacts`（默认 `false`）：
-  - 写 `synth_trace_manifest.jsonl`、`mixed_trace_manifest.jsonl`。
+  - 写 `synth_trace_manifest.jsonl`。
+- `generate.manifest.guide_type: prompt|image_guided`（默认 `prompt`）：
+  - 手动指定本次任务 guide 类型，避免自动推断复杂度。
 - `generate.comfyui.persist_outputs`（默认 `false`）：
   - `false`：优先直接引用 `generate.comfyui.output_dir` 下的 ComfyUI 输出文件，不再复制到 `<run_dir>/generate/images`。
   - `true`：下载并保存到 `<run_dir>/generate/images`。
 
 核心追踪字段（trace）：
-- `sample_id`, `source`, `image_path`
+- `synthetic_id`, `synthetic_image_name`, `synthetic_image_path`
 - `prompt_text`, `seed`
-- `guide_image`, `guide_type`
+- `guide_type`
 - `width`, `height`
 - `config_ref`
 - `synthetic_image_ids`（同一个 ComfyUI prompt job 的输出 sample_id 数组）
-- `anchor_real_sample_id`（可选；存在时写入）
 
 ## 5. 运行命令
 

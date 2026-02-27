@@ -75,7 +75,7 @@ Structure is **reasonable for CLI-first research iteration**:
     - optional non-blocking batch submit/poll mode (`generate.comfyui.non_blocking`, `generate.comfyui.max_inflight`)
     - optional websocket wait (`executing` completion signal), then fetches final outputs from `/history`
     - downloads generated images via `/view`
-    - writes `generate/{synth_manifest.jsonl,mixed_manifest.jsonl,report.json}`
+    - writes `generate/{synth_manifest.jsonl,report.json}`
 - `third_party/comfyui/docker-compose.comfyui.yml`
   - ComfyUI third-party subsystem compose entry (GPU container + mounted models/output/custom_nodes/workflows)
 - `third_party/comfyui/comfyui_ctl.sh`

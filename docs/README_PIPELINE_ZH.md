@@ -25,10 +25,10 @@
 
 2. `Control Generation`
 - 输入：real manifest + ComfyUI workflow + prompt/control 配置
-- 输出：`synth_manifest.jsonl` + `mixed_manifest.jsonl`
+- 输出：`synth_manifest.jsonl`
 
 3. `Filter (phase1 now)`
-- 输入：`mixed_manifest.jsonl`（推荐）或显式 manifest
+- 输入：`synth_manifest.jsonl`（推荐）或显式 manifest
 - 输出：`filter_scores.jsonl` + `accept/reject/uncertain`
 - 约束：当前仅支持 `filter.mode=compose`（phase1 v1 极简路径）
 
@@ -41,7 +41,7 @@
 | Phase | 关键产物 | 下一个 Phase 如何消费 |
 | --- | --- | --- |
 | DataLoader | `dataloader/real_manifest.jsonl` | Generation 通过 `generate.real_manifest` 读取 |
-| Control Generation | `generate/mixed_manifest.jsonl` | Filter 作为主输入 manifest（推荐自动发现） |
+| Control Generation | `generate/synth_manifest.jsonl` | Filter 作为主输入 manifest（推荐自动发现） |
 | Filter(phase1) | `filter_scores.jsonl` + `splits/*` | 目标态交给 Annotation/HITL/Training（当前未并入默认主路径） |
 | Annotation/HITL（目标态） | 清洗标注数据集 | Training 消费 |
 | Training（目标态） | 模型与评估产物 | 反馈下轮配置/策略 |

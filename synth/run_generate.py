@@ -39,28 +39,20 @@ def _normalize_manifest_cfg(gen_cfg: Dict[str, Any]) -> Dict[str, Any]:
 
     out = dict(manifest_cfg)
     out["profile"] = profile
+    guide_type = str(manifest_cfg.get("guide_type", "prompt")).strip().lower() or "prompt"
+    if guide_type not in {"prompt", "image_guided"}:
+        raise ValueError("generate.manifest.guide_type must be one of: prompt, image_guided")
+    out["guide_type"] = guide_type
     out["write_trace_artifacts"] = bool(manifest_cfg.get("write_trace_artifacts", False))
     out["trace_synth_name"] = str(manifest_cfg.get("trace_synth_name", "synth_trace_manifest.jsonl")).strip() or "synth_trace_manifest.jsonl"
-    out["trace_mixed_name"] = str(manifest_cfg.get("trace_mixed_name", "mixed_trace_manifest.jsonl")).strip() or "mixed_trace_manifest.jsonl"
     return out
 
 
-def _infer_guide_type(row: Dict[str, Any]) -> str:
-    source = str(row.get("source", "")).strip().lower()
-    if source == "real":
-        return ""
-
-    has_anchor_input = bool(str(row.get("effective_anchor_input", "")).strip())
-    has_anchor_inputs = isinstance(row.get("effective_anchor_inputs"), dict) and bool(row.get("effective_anchor_inputs"))
-    if has_anchor_input or has_anchor_inputs:
-        return "image_guided"
-    return "prompt"
-
-
-def build_trace_rows(
+def build_synth_manifest_rows(
     rows: List[Dict[str, Any]],
     *,
     default_config_ref: str,
+    guide_type: str,
     default_prompt_text: str = "",
 ) -> List[Dict[str, Any]]:
     trace_rows: List[Dict[str, Any]] = []
@@ -72,37 +64,25 @@ def build_trace_rows(
             prompt_text = default_prompt_text
 
         config_ref = str(row.get("comfy_prompt_graph_source", "")).strip() or default_config_ref
-        guide_image = str(row.get("effective_anchor_input", "")).strip()
-        if not guide_image:
-            inputs = row.get("effective_anchor_inputs")
-            if isinstance(inputs, dict) and inputs:
-                guide_image = str(next(iter(inputs.values()))).strip()
-        guide_type = _infer_guide_type(row)
+        synthetic_id = str(row.get("sample_id", ""))
+        image_path = str(row.get("image_path", ""))
 
         trace: Dict[str, Any] = {
-            "sample_id": str(row.get("sample_id", "")),
-            "source": str(row.get("source", "")),
-            "image_path": str(row.get("image_path", "")),
+            "synthetic_id": synthetic_id,
+            "synthetic_image_name": Path(image_path).name if image_path else "",
+            "synthetic_image_path": image_path,
             "width": row.get("width"),
             "height": row.get("height"),
             "prompt_text": prompt_text,
             "seed": row.get("seed"),
-            "guide_image": guide_image,
             "guide_type": guide_type,
             "config_ref": config_ref,
             "synthetic_image_ids": (
                 [str(x) for x in row.get("synthetic_image_ids", [])]
                 if isinstance(row.get("synthetic_image_ids"), list)
-                else [str(row.get("sample_id", ""))]
+                else [synthetic_id]
             ),
         }
-        anchor_sid = str(row.get("anchor_real_sample_id", "")).strip()
-        if anchor_sid:
-            trace["anchor_real_sample_id"] = anchor_sid
-        if not guide_image:
-            trace["guide_image"] = ""
-        if not guide_type:
-            trace["guide_type"] = ""
         trace_rows.append(trace)
     return trace_rows
 
@@ -1116,41 +1096,30 @@ def main() -> None:
 
     size_stats = enrich_synth_rows_with_dimensions(synth_rows, real_rows)
 
-    mixed_rows = [*real_rows, *synth_rows]
     prompt_text_fallback = ""
     comfy_cfg = gen_cfg.get("comfyui", {})
     if isinstance(comfy_cfg, dict):
         prompt_cfg = comfy_cfg.get("prompt", {})
         if isinstance(prompt_cfg, dict):
             prompt_text_fallback = str(prompt_cfg.get("text", "")).strip()
-    trace_synth_rows = build_trace_rows(
+    trace_synth_rows = build_synth_manifest_rows(
         synth_rows,
         default_config_ref=str(Path(args.config).resolve()),
+        guide_type=str(manifest_cfg["guide_type"]),
         default_prompt_text=prompt_text_fallback,
     )
-    trace_real_rows = build_trace_rows(
-        real_rows,
-        default_config_ref=str(real_manifest),
-        default_prompt_text="",
-    )
-    trace_mixed_rows = [*trace_real_rows, *trace_synth_rows]
 
     synth_manifest = gen_dir / "synth_manifest.jsonl"
-    mixed_manifest = gen_dir / "mixed_manifest.jsonl"
     trace_synth_manifest = gen_dir / str(manifest_cfg["trace_synth_name"])
-    trace_mixed_manifest = gen_dir / str(manifest_cfg["trace_mixed_name"])
 
     profile = str(manifest_cfg["profile"])
     if profile == "compat":
         write_jsonl(synth_manifest, synth_rows)
-        write_jsonl(mixed_manifest, mixed_rows)
     else:
         write_jsonl(synth_manifest, trace_synth_rows)
-        write_jsonl(mixed_manifest, trace_mixed_rows)
 
     if bool(manifest_cfg["write_trace_artifacts"]):
         write_jsonl(trace_synth_manifest, trace_synth_rows)
-        write_jsonl(trace_mixed_manifest, trace_mixed_rows)
 
     report = {
         "stage": "generate",
@@ -1158,17 +1127,15 @@ def main() -> None:
         "backend": backend,
         "real_manifest": str(real_manifest),
         "synth_manifest": str(synth_manifest),
-        "mixed_manifest": str(mixed_manifest),
         "real_count": len(real_rows),
         "synthetic_count": len(synth_rows),
-        "mixed_count": len(mixed_rows),
         "synth_per_real": int(gen_cfg.get("synth_per_real", 1)),
         "manifest_profile": profile,
+        "manifest_guide_type": str(manifest_cfg["guide_type"]),
         **size_stats,
     }
     if bool(manifest_cfg["write_trace_artifacts"]):
         report["trace_synth_manifest"] = str(trace_synth_manifest)
-        report["trace_mixed_manifest"] = str(trace_mixed_manifest)
     if backend == "comfyui":
         comfy_cfg = gen_cfg.get("comfyui", {})
         if isinstance(comfy_cfg, dict):

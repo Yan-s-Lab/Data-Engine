@@ -57,7 +57,7 @@ def build_runtime_config(config: Dict[str, Any]) -> Dict[str, Any]:
     # 读取 filter 子配置；若不存在则用空字典
     filter_cfg = dict(cfg.get("filter", {}))
     # 若用户未显式指定 filter.input_manifest，则自动接 generate 产物
-    filter_cfg.setdefault("input_manifest", str(run_dir / "generate" / "mixed_manifest.jsonl"))
+    filter_cfg.setdefault("input_manifest", str(run_dir / "generate" / "synth_manifest.jsonl"))
     # 把补全后的 filter 配置写回总配置
     cfg["filter"] = filter_cfg
     # 返回“可直接执行”的运行时配置
@@ -68,7 +68,7 @@ def stage_output_ok(stage: str, run_dir: Path) -> bool:
     # 每个阶段必须产生的关键工件；用于最小正确性校验
     expected = {
         "dataloader": run_dir / "dataloader" / "real_manifest.jsonl",
-        "generate": run_dir / "generate" / "mixed_manifest.jsonl",
+        "generate": run_dir / "generate" / "synth_manifest.jsonl",
         "filter": run_dir / "filter" / "splits" / "accept.jsonl",
         "train": run_dir / "train" / "model_stub.json",
         "eval": run_dir / "eval" / "policy_feedback.json",

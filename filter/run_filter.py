@@ -258,13 +258,35 @@ def _resolve_filter_input_manifest(
     if input_manifest:
         return Path(str(input_manifest)), "filter.input_manifest"
 
-    auto_from_generate = bool(filter_cfg.get("auto_input_from_generate_mixed", True))
+    auto_from_generate = bool(
+        filter_cfg.get(
+            "auto_input_from_generate_synth",
+            filter_cfg.get("auto_input_from_generate_mixed", True),
+        )
+    )
     if auto_from_generate:
+        synth_manifest = run_dir / "generate" / "synth_manifest.jsonl"
+        if synth_manifest.exists():
+            return synth_manifest, "run_dir/generate/synth_manifest.jsonl"
         mixed_manifest = run_dir / "generate" / "mixed_manifest.jsonl"
         if mixed_manifest.exists():
             return mixed_manifest, "run_dir/generate/mixed_manifest.jsonl"
 
     return None, ""
+
+
+def _normalize_generate_manifest_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        normalized = dict(row)
+        if not str(normalized.get("sample_id", "")).strip():
+            normalized["sample_id"] = str(normalized.get("synthetic_id", "")).strip()
+        if not str(normalized.get("image_path", "")).strip():
+            normalized["image_path"] = str(normalized.get("synthetic_image_path", "")).strip()
+        if not str(normalized.get("source", "")).strip():
+            normalized["source"] = "synthetic"
+        out.append(normalized)
+    return out
 
 
 def _is_real_guided_synth(row: Dict[str, Any], phase1_cfg: Dict[str, Any]) -> bool:
@@ -577,6 +599,7 @@ def main() -> None:
             real_ratio=float(filter_cfg.get("stub_real_ratio", 0.5)),
         )
         input_manifest_source = "stub_manifest"
+    rows = _normalize_generate_manifest_rows(rows)
 
     accept_threshold = float(filter_cfg.get("accept_threshold", 0.6))
     uncertain_low = float(filter_cfg.get("uncertain_low", 0.45))

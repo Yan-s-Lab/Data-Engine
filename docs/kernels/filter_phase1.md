@@ -11,7 +11,7 @@
 ## 2. Phase 输入输出关系
 
 - 输入：
-  - 推荐：`<run_dir>/generate/mixed_manifest.jsonl`
+  - 推荐：`<run_dir>/generate/synth_manifest.jsonl`
   - 或显式 `filter.input_manifest`
 - 输出：
   - `<run_dir>/filter/filter_scores.jsonl`
@@ -30,7 +30,8 @@
 
 1. 输入清单优先级
 - `filter.input_manifest`（显式）
-- `<run_dir>/generate/mixed_manifest.jsonl`（默认自动）
+- `<run_dir>/generate/synth_manifest.jsonl`（默认自动）
+- `<run_dir>/generate/mixed_manifest.jsonl`（历史兼容回退）
 - `manifest_builder`（启用时）
 - stub manifest（兜底）
 

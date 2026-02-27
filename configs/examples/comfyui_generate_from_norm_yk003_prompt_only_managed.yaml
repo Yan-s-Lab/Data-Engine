@@ -1,6 +1,6 @@
 run:
   # 本次生成任务的 run 标识；决定产物目录名。
-  run_id: yk003_prompt_only_demo_managed_20260225_rerun_2
+  run_id: yk003_prompt_only_demo_managed_20260225_test
   # 统一产物根目录，最终输出到 {artifacts_root}/{run_id}/...
   artifacts_root: artifacts/runs
 
@@ -15,6 +15,9 @@ generate:
   max_synth_samples: 2
   # 基础随机种子；实际每个样本 seed = seed_base + sample_index。
   seed_base: 20260225
+  manifest:
+    # 手动指定本次任务类型：prompt 或 image_guided。
+    guide_type: prompt
   comfyui:
     # ComfyUI HTTP API 地址。
     base_url: http://127.0.0.1:8188
