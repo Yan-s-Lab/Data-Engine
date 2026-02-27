@@ -47,6 +47,7 @@ class GenerateManifestProfileTest(unittest.TestCase):
         self.assertEqual(row["synthetic_image_name"], "prompt_only_0_20260225_00005_.png")
         self.assertEqual(row["prompt_text"], "demo prompt")
         self.assertEqual(row["seed"], 11)
+        self.assertEqual(row["guide_image_id"], "real_0001")
         self.assertEqual(row["guide_type"], "prompt")
         self.assertEqual(row["width"], 1024)
         self.assertEqual(row["height"], 1024)
@@ -71,6 +72,8 @@ class GenerateManifestProfileTest(unittest.TestCase):
             guide_type="image_guided",
         )
         row = out[0]
+        self.assertIn("guide_image_id", row)
+        self.assertEqual(row["guide_image_id"], "")
         self.assertEqual(row["guide_type"], "image_guided")
         self.assertEqual(row["synthetic_image_ids"], ["prompt_only_1_20260226_00001_"])
 

@@ -75,6 +75,10 @@ def build_synth_manifest_rows(
             "height": row.get("height"),
             "prompt_text": prompt_text,
             "seed": row.get("seed"),
+            "guide_image_id": (
+                str(row.get("guide_image_id", "")).strip()
+                or str(row.get("anchor_real_sample_id", "")).strip()
+            ),
             "guide_type": guide_type,
             "config_ref": config_ref,
             "synthetic_image_ids": (

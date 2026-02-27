@@ -63,6 +63,7 @@
 核心追踪字段（trace）：
 - `synthetic_id`, `synthetic_image_name`, `synthetic_image_path`
 - `prompt_text`, `seed`
+- `guide_image_id`（prompt-only 为空字符串）
 - `guide_type`
 - `width`, `height`
 - `config_ref`
