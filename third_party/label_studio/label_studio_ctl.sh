@@ -37,6 +37,19 @@ check_service() {
   curl -fsS "${url}/api/health" >/dev/null 2>&1 || curl -fsS "${url}/health" >/dev/null 2>&1
 }
 
+wait_for_service() {
+  local attempts="${1:-20}"
+  local sleep_sec="${2:-3}"
+  local i
+  for ((i=1; i<=attempts; i++)); do
+    if check_service; then
+      return 0
+    fi
+    sleep "${sleep_sec}"
+  done
+  return 1
+}
+
 cmd="${1:-ensure}"
 
 case "${cmd}" in
@@ -45,7 +58,7 @@ case "${cmd}" in
     docker ps --filter "name=$(container_name)" --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}'
     ;;
   check)
-    if check_service; then
+    if wait_for_service "${LABEL_STUDIO_CHECK_RETRIES:-20}" "${LABEL_STUDIO_CHECK_INTERVAL_SEC:-3}"; then
       echo "label-studio: healthy at $(base_url)"
     else
       echo "label-studio: unavailable at $(base_url)" >&2
@@ -66,6 +79,11 @@ case "${cmd}" in
     echo "label-studio: not healthy, starting service via docker compose"
     compose up -d
     compose ps
+    if ! wait_for_service "${LABEL_STUDIO_CHECK_RETRIES:-20}" "${LABEL_STUDIO_CHECK_INTERVAL_SEC:-3}"; then
+      echo "label-studio: startup timeout at $(base_url)" >&2
+      exit 1
+    fi
+    echo "label-studio: healthy at $(base_url)"
     ;;
   stop)
     compose down

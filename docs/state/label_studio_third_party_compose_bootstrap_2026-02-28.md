@@ -38,3 +38,11 @@ cp third_party/label_studio/.env.example third_party/label_studio/.env
 ```
 
 Equivalent default URL: `http://127.0.0.1:8080`
+
+## Update (same day)
+
+- `label_studio_ctl.sh` now includes startup wait/retry in `ensure` and `check`.
+- New optional env knobs:
+  - `LABEL_STUDIO_CHECK_RETRIES` (default `20`)
+  - `LABEL_STUDIO_CHECK_INTERVAL_SEC` (default `3`)
+- This avoids false negatives during first boot when database initialization takes time.
