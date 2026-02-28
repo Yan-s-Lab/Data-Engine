@@ -8,7 +8,7 @@
 - `synth/run_generate.py`
 
 主要实现拆分：
-- `synth/comfyui_client.py`：ComfyUI 请求、等待、输出下载
+- `synth/comfyui_client.py`：ComfyUI 请求、等待、输出索引
 - `synth/comfyui_workflow.py`：workflow 校验与节点注入、anchor 过滤
 - `synth/generate_manifest.py`：manifest 配置与产物写入
 
@@ -18,7 +18,7 @@
   - `generate.real_manifest`（来自 dataloader；`guide_type=prompt` 且无 anchor_images 时可省略）
   - `generate.comfyui.workflow`（API prompt graph）
   - prompt/seed/control 配置
-- 输出（默认 `manifest.profile=core`）：
+- 输出：
   - `<run_dir>/generate/synth_manifest.jsonl`（核心追踪字段）
   - `<run_dir>/generate/report.json`
 - 下游关系：
@@ -54,10 +54,7 @@
 5. 文件名前缀逻辑
 - `filename_prefix.template` 可使用 `anchor_image_stem`、`sample_index`、`seed` 等变量。
 
-6. manifest 分层（core vs capabilities）
-- `generate.manifest.profile: compat|core`（默认 `core`）
-  - `core`：`synth_manifest` 使用最小追踪字段（默认）。
-  - `compat`：按需回退到历史全字段。
+6. manifest 与输出行为
 - `generate.manifest.write_trace_artifacts`（默认 `false`）：
   - 写 `synth_trace_manifest.jsonl`。
 - `generate.manifest.guide_type: prompt|image_guided`（默认 `prompt`）：

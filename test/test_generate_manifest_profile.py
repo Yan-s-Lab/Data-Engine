@@ -32,13 +32,8 @@ class GenerateManifestProfileTest(unittest.TestCase):
 
     def test_manifest_cfg_defaults(self) -> None:
         cfg = _normalize_manifest_cfg({})
-        self.assertEqual(cfg["profile"], "core")
         self.assertEqual(cfg["guide_type"], "prompt")
         self.assertFalse(cfg["write_trace_artifacts"])
-
-    def test_manifest_cfg_rejects_invalid_profile(self) -> None:
-        with self.assertRaises(ValueError):
-            _normalize_manifest_cfg({"manifest": {"profile": "unknown"}})
 
     def test_build_trace_rows_has_core_tracking_fields(self) -> None:
         rows = [

@@ -14,12 +14,7 @@ def normalize_manifest_cfg(gen_cfg: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(manifest_cfg, dict):
         raise ValueError("generate.manifest must be a mapping when provided")
 
-    profile = str(manifest_cfg.get("profile", "core")).strip().lower() or "core"
-    if profile not in {"compat", "core"}:
-        raise ValueError("generate.manifest.profile must be one of: compat, core")
-
     out = dict(manifest_cfg)
-    out["profile"] = profile
     guide_type = str(manifest_cfg.get("guide_type", "prompt")).strip().lower() or "prompt"
     if guide_type not in {"prompt", "image_guided"}:
         raise ValueError("generate.manifest.guide_type must be one of: prompt, image_guided")
@@ -113,11 +108,7 @@ def write_generate_outputs(
     synth_manifest = gen_dir / "synth_manifest.jsonl"
     trace_synth_manifest = gen_dir / str(manifest_cfg["trace_synth_name"])
 
-    profile = str(manifest_cfg["profile"])
-    if profile == "compat":
-        write_jsonl(synth_manifest, synth_rows)
-    else:
-        write_jsonl(synth_manifest, trace_synth_rows)
+    write_jsonl(synth_manifest, trace_synth_rows)
 
     trace_path: Path | None = None
     report["synth_manifest"] = str(synth_manifest)

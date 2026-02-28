@@ -15,8 +15,6 @@ generate:
 
   manifest:
     # Output schema: image-guided 路由
-    # core=默认精简 synth_manifest 字段（当前推荐）
-    profile: "core"
     guide_type: "image_guided"
 
   comfyui:

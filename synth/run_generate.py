@@ -586,7 +586,6 @@ def main() -> None:
         "synthetic_count": len(synth_rows),
         "synthetic_job_count": synthetic_job_count(synth_rows),
         "synth_per_real": int(gen_cfg.get("synth_per_real", 1)),
-        "manifest_profile": str(manifest_cfg["profile"]),
         "manifest_guide_type": str(manifest_cfg["guide_type"]),
         **size_stats,
     }

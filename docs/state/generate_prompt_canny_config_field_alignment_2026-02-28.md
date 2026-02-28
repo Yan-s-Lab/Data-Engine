@@ -6,7 +6,6 @@
 
 ## Changes
 - `test/test-generation/config/generation/deltoid_muscle_seg_prompt_canny.yaml`
-  - `generate.manifest.profile` 显式设置为 `core`（与当前默认产物形态一致）。
   - 显式补充 `generate.comfyui.output_dir: data/comfyui/output`。
 
 ## Notes
