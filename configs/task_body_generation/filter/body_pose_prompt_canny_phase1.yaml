@@ -1,0 +1,48 @@
+run:
+  run_id: yk003_body_pose_prompt_canny_filter_phase1_20260228
+  artifacts_root: artifacts/user_runs
+
+filter:
+  mode: compose
+  input_manifest: artifacts/runs/yk003/body_pose_generation/body_pose__prompt_canny/generate/synth_manifest.jsonl
+  keep_real_always: true
+
+  accept_threshold: 0.72
+  uncertain_low: 0.62
+  uncertain_high: 0.72
+
+  # 补齐 guided anchor embedding：从 dataloader real manifest 自动注入缺失 real rows。
+  anchor_real_manifest: artifacts/runs/yk003/body_pose/yk003_body_datanorm/dataloader/real_manifest.jsonl
+
+  clip:
+    model_id: google/siglip2-base-patch16-224
+    device: auto
+    prompt_score_mode: cosine
+    prompt_template_file: configs/task_body_generation/generation/prompt.txt
+
+  phase1_semantic:
+    enabled: true
+    guided_w_anchor: 0.8
+    guided_w_prompt: 0.2
+    prompt_metric: raw_cosine
+    prompt_field: effective_prompt_text
+    guided_marker_fields:
+      - guide_image_id
+      - anchor_real_image_path
+      - effective_anchor_input
+      - effective_anchor_inputs
+    anchor_sid_fields:
+      - guide_image_id
+
+  policy:
+    decision: phase1_v1
+    ranking_review:
+      enabled: true
+      target_source: synthetic
+      rank_metric: s_final
+      keep_top_ratio: 0.3
+      review_rest: true
+      guided_min_anchor: 0.85
+      guided_min_prompt_from_real_quantile: q10
+      guided_min_prompt: -1.0
+      hard_reject: false

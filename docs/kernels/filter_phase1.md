@@ -19,6 +19,7 @@
   - `<run_dir>/filter/splits/reject.jsonl`
   - `<run_dir>/filter/splits/uncertain.jsonl`
   - `<run_dir>/filter/report.json`
+    - 包含 `input_total`（补锚前输入数）与 `anchor_real_injection`（补锚来源/数量）
 - 下游关系（目标态）：
   - `accept/uncertain` 进入 annotation / HITL / training
 
@@ -34,6 +35,13 @@
 - `<run_dir>/generate/mixed_manifest.jsonl`（历史兼容回退）
 - `manifest_builder`（启用时）
 - stub manifest（兜底）
+
+1.5 guided anchor 自动补齐
+- 当输入为 `synth_manifest` 且 guided 样本缺少对应 real anchor row 时，Filter 会自动尝试补齐：
+  - `filter.anchor_real_manifest`
+  - `clip.prompt_from_generate_config -> generate.real_manifest`
+  - `input_manifest` 同级 `generate/report.json` 中的 `real_manifest`
+- 补齐行为与缺失统计写入 `report.anchor_real_injection`。
 
 2. 两个原始分数
 - `s_anchor = sim(anchor_image, synthetic_image)`（仅 guided synthetic 使用；由 `semantic_pair` 提供）

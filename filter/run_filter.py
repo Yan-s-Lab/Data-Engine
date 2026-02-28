@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -208,18 +208,14 @@ def _resolve_filter_prompt_text(
 
     template_file = str(clip_cfg.get("prompt_template_file", "")).strip()
     if template_file:
-        path = Path(template_file)
-        if not path.is_absolute():
-            path = (config_path.parent / path).resolve()
+        path = _resolve_path_with_workspace_fallback(template_file, base_dir=config_path.parent)
         clip_cfg["prompt_text"] = path.read_text(encoding="utf-8").strip()
         return "clip.prompt_template_file"
 
     generate_cfg_path = str(clip_cfg.get("prompt_from_generate_config", "")).strip()
     if not generate_cfg_path:
         return ""
-    gen_path = Path(generate_cfg_path)
-    if not gen_path.is_absolute():
-        gen_path = (config_path.parent / gen_path).resolve()
+    gen_path = _resolve_path_with_workspace_fallback(generate_cfg_path, base_dir=config_path.parent)
     gen_cfg = load_config(gen_path)
     prompt_cfg = (
         gen_cfg.get("generate", {})
@@ -231,9 +227,7 @@ def _resolve_filter_prompt_text(
 
     gen_template_file = str(prompt_cfg.get("template_file", "")).strip()
     if gen_template_file:
-        p = Path(gen_template_file)
-        if not p.is_absolute():
-            p = (gen_path.parent / p).resolve()
+        p = _resolve_path_with_workspace_fallback(gen_template_file, base_dir=gen_path.parent)
         clip_cfg["prompt_text"] = p.read_text(encoding="utf-8").strip()
         return "clip.prompt_from_generate_config.template_file"
 
@@ -273,6 +267,146 @@ def _resolve_filter_input_manifest(
             return mixed_manifest, "run_dir/generate/mixed_manifest.jsonl"
 
     return None, ""
+
+
+def _resolve_path_with_workspace_fallback(raw_path: str, *, base_dir: Path) -> Path:
+    p = Path(str(raw_path).strip())
+    if p.is_absolute():
+        return p
+    preferred = (base_dir / p).resolve()
+    workspace = (ROOT / p).resolve()
+    if preferred.exists():
+        return preferred
+    if workspace.exists():
+        return workspace
+    return preferred
+
+
+def _resolve_anchor_real_manifest(
+    *,
+    filter_cfg: Dict[str, Any],
+    config_path: Path,
+    input_manifest_path: Path | None,
+) -> Tuple[Path | None, str]:
+    explicit = str(filter_cfg.get("anchor_real_manifest", "")).strip()
+    if explicit:
+        return _resolve_path_with_workspace_fallback(explicit, base_dir=config_path.parent), "filter.anchor_real_manifest"
+
+    clip_cfg = filter_cfg.get("clip")
+    if isinstance(clip_cfg, dict):
+        from_gen_cfg = str(clip_cfg.get("prompt_from_generate_config", "")).strip()
+        if from_gen_cfg and bool(filter_cfg.get("auto_anchor_real_manifest_from_generate_config", True)):
+            gen_cfg_path = _resolve_path_with_workspace_fallback(from_gen_cfg, base_dir=config_path.parent)
+            if gen_cfg_path.exists():
+                gen_cfg = load_config(gen_cfg_path)
+                gen_real_manifest = str(gen_cfg.get("generate", {}).get("real_manifest", "")).strip()
+                if gen_real_manifest:
+                    return (
+                        _resolve_path_with_workspace_fallback(gen_real_manifest, base_dir=gen_cfg_path.parent),
+                        "clip.prompt_from_generate_config.generate.real_manifest",
+                    )
+
+    if bool(filter_cfg.get("auto_anchor_real_manifest_from_generate_report", True)) and input_manifest_path is not None:
+        report_path = input_manifest_path.parent / "report.json"
+        if report_path.exists():
+            try:
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+                real_manifest = str(report.get("real_manifest", "")).strip()
+                if real_manifest:
+                    return (
+                        _resolve_path_with_workspace_fallback(real_manifest, base_dir=report_path.parent),
+                        "input_manifest_sibling_report.real_manifest",
+                    )
+            except json.JSONDecodeError:
+                pass
+    return None, ""
+
+
+def _inject_anchor_real_rows(
+    *,
+    rows: List[Dict[str, Any]],
+    filter_cfg: Dict[str, Any],
+    config_path: Path,
+    input_manifest_path: Path | None,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    phase1_cfg = dict(filter_cfg.get("phase1_semantic", {}))
+    if not bool(phase1_cfg.get("enabled", False)):
+        return rows, {"enabled": False, "reason": "phase1_semantic_disabled"}
+
+    anchor_sid_fields = [str(x) for x in phase1_cfg.get("anchor_sid_fields", ["guide_image_id", "anchor_real_sample_id"])]
+    existing_ids: Set[str] = {str(r.get("sample_id", "")).strip() for r in rows if str(r.get("sample_id", "")).strip()}
+
+    required_anchor_ids: Set[str] = set()
+    for row in rows:
+        if str(row.get("source", "")) != "synthetic":
+            continue
+        if not _is_real_guided_synth(row=row, phase1_cfg=phase1_cfg):
+            continue
+        for field in anchor_sid_fields:
+            anchor_sid = str(row.get(field, "")).strip()
+            if anchor_sid:
+                required_anchor_ids.add(anchor_sid)
+                break
+
+    missing_anchor_ids = sorted(sid for sid in required_anchor_ids if sid not in existing_ids)
+    if not missing_anchor_ids:
+        return rows, {
+            "enabled": True,
+            "anchor_sid_fields": anchor_sid_fields,
+            "required_anchor_count": len(required_anchor_ids),
+            "missing_anchor_count": 0,
+            "injected_anchor_count": 0,
+            "anchor_manifest_path": "",
+            "anchor_manifest_source": "",
+            "unresolved_anchor_count": 0,
+        }
+
+    anchor_manifest_path, anchor_manifest_source = _resolve_anchor_real_manifest(
+        filter_cfg=filter_cfg,
+        config_path=config_path,
+        input_manifest_path=input_manifest_path,
+    )
+    if anchor_manifest_path is None or not anchor_manifest_path.exists():
+        return rows, {
+            "enabled": True,
+            "anchor_sid_fields": anchor_sid_fields,
+            "required_anchor_count": len(required_anchor_ids),
+            "missing_anchor_count": len(missing_anchor_ids),
+            "injected_anchor_count": 0,
+            "anchor_manifest_path": str(anchor_manifest_path) if anchor_manifest_path is not None else "",
+            "anchor_manifest_source": anchor_manifest_source,
+            "unresolved_anchor_count": len(missing_anchor_ids),
+            "reason": "anchor_manifest_missing",
+        }
+
+    anchor_rows = _normalize_generate_manifest_rows(read_jsonl(anchor_manifest_path))
+    anchor_index: Dict[str, Dict[str, Any]] = {}
+    for row in anchor_rows:
+        sid = str(row.get("sample_id", "")).strip()
+        if sid:
+            normalized_row = dict(row)
+            normalized_row["source"] = "real"
+            anchor_index[sid] = normalized_row
+
+    injected_rows: List[Dict[str, Any]] = []
+    unresolved = 0
+    for sid in missing_anchor_ids:
+        row = anchor_index.get(sid)
+        if row is None:
+            unresolved += 1
+            continue
+        injected_rows.append(row)
+
+    return rows + injected_rows, {
+        "enabled": True,
+        "anchor_sid_fields": anchor_sid_fields,
+        "required_anchor_count": len(required_anchor_ids),
+        "missing_anchor_count": len(missing_anchor_ids),
+        "injected_anchor_count": len(injected_rows),
+        "anchor_manifest_path": str(anchor_manifest_path),
+        "anchor_manifest_source": anchor_manifest_source,
+        "unresolved_anchor_count": unresolved,
+    }
 
 
 def _normalize_generate_manifest_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -315,7 +449,6 @@ def _is_real_guided_synth(row: Dict[str, Any], phase1_cfg: Dict[str, Any]) -> bo
 
 def build_phase1_semantic_scores(
     rows: List[Dict[str, Any]],
-    semantic_scores: Dict[str, Dict[str, float]],
     paired_scores: Dict[str, Dict[str, float]],
     prompt_scores: Dict[str, float],
     phase1_cfg: Dict[str, Any],
@@ -485,7 +618,6 @@ def run_composed_clip_filter(
         phase1_pair_state = {"enabled": False, "pair_hit_count": 0, "pair_miss_count": 0}
     phase1_scores, phase1_state = build_phase1_semantic_scores(
         rows=rows,
-        semantic_scores={},
         paired_scores=paired_scores,
         prompt_scores=prompt_scores,
         phase1_cfg=phase1_cfg,
@@ -603,6 +735,13 @@ def main() -> None:
         )
         input_manifest_source = "stub_manifest"
     rows = _normalize_generate_manifest_rows(rows)
+    input_rows_count = len(rows)
+    rows, anchor_real_injection = _inject_anchor_real_rows(
+        rows=rows,
+        filter_cfg=filter_cfg,
+        config_path=config_path,
+        input_manifest_path=input_manifest_path,
+    )
 
     accept_threshold = float(filter_cfg.get("accept_threshold", 0.6))
     uncertain_low = float(filter_cfg.get("uncertain_low", 0.45))
@@ -659,6 +798,7 @@ def main() -> None:
         "input_manifest_path": str(input_manifest_path) if input_manifest_path is not None else "",
         "input_manifest_source": input_manifest_source,
         "total": len(rows),
+        "input_total": input_rows_count,
         "accept": len(accept_rows),
         "reject": len(reject_rows),
         "uncertain": len(uncertain_rows),
@@ -669,6 +809,7 @@ def main() -> None:
             "uncertain_high": uncertain_high,
         },
         "legacy_artifacts_removed": legacy_artifacts_removed,
+        "anchor_real_injection": anchor_real_injection,
         **report_extra,
     }
     write_json(filter_dir / "report.json", report)
