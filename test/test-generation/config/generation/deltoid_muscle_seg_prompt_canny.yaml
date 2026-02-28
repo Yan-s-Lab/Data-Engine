@@ -15,6 +15,8 @@ generate:
 
   manifest:
     # Output schema: image-guided 路由
+    # core=默认精简 synth_manifest 字段（当前推荐）
+    profile: "core"
     guide_type: "image_guided"
 
   comfyui:
@@ -31,6 +33,11 @@ generate:
     client_id: yk003-canny
     timeout_sec: 1800
     poll_interval_sec: 1.0
+
+    # Output 文件落地策略
+    # false: 直接引用 ComfyUI output_dir，不复制到 run_dir/generate/images
+    persist_outputs: false
+    output_dir: data/comfyui/output
 
     # Implement -> API graph 注入（会覆盖 workflow 中对应 node.inputs）
     # - seed_node_id + seed_input_key: 写随机种子
