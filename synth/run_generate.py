@@ -233,6 +233,7 @@ def generate_with_comfyui(
             sample_idx=idx,
             seed=seed,
             run_id=run_id,
+            client_id=client_id,
         )
         effective_anchor_inputs = apply_anchor_images(
             workflow=workflow,

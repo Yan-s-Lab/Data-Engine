@@ -177,6 +177,7 @@ def set_workflow_filename_prefix(
     sample_idx: int,
     seed: int,
     run_id: str = "",
+    client_id: str = "",
 ) -> str:
     node_id = str(filename_prefix_cfg.get("node_id", "")).strip()
     if not node_id:
@@ -187,6 +188,7 @@ def set_workflow_filename_prefix(
     dataloader_config_path = str(filename_prefix_cfg.get("dataloader_config", "")).strip()
 
     context: Dict[str, Any] = {
+        "client_id": str(client_id).strip(),
         "run_id": str(run_id).strip(),
         "sample_index": sample_idx,
         "seed": seed,

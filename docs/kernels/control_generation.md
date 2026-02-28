@@ -52,7 +52,7 @@
 - `on_timeout=fail|skip|retry` 与 `timeout_retries` 控制超时策略。
 
 5. 文件名前缀逻辑
-- `filename_prefix.template` 可使用 `anchor_image_stem`、`sample_index`、`seed` 等变量。
+- `filename_prefix.template` 可使用 `client_id`、`run_id`、`anchor_image_stem`、`sample_index`、`seed` 等变量。
 - `anchor_image_stem`/`anchor_image_name` 统一取自 norm 后的 `real_manifest.image_path`（不再使用 `original_image_path`）。
 
 6. manifest 与输出行为
