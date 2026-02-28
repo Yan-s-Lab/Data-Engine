@@ -30,6 +30,13 @@ pip install -r requirements.txt
 ./third_party/comfyui/comfyui_ctl.sh check
 ```
 
+4. Start or verify Label Studio service:
+```bash
+cp third_party/label_studio/.env.example third_party/label_studio/.env
+./third_party/label_studio/label_studio_ctl.sh ensure
+./third_party/label_studio/label_studio_ctl.sh check
+```
+
 ```bash
 # Give your current account permission for changging volume of docker: data/comfyui
 sudo chown -R "$USER":"$USER" data/comfyui
@@ -43,7 +50,7 @@ sudo chown -R "$USER":"$USER" data/comfyui
 
 ```
 
-4. Ensure dataset paths in your dataloader config exist before running:
+5. Ensure dataset paths in your dataloader config exist before running:
 - `dataloader.image_dir`
 - `dataloader.label_dir` (if labels are required)
 

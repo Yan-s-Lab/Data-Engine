@@ -1,0 +1,15 @@
+services:
+  label-studio:
+    image: ${LABEL_STUDIO_IMAGE:-heartexlabs/label-studio:latest}
+    container_name: ${LABEL_STUDIO_CONTAINER_NAME:-label-studio-service}
+    restart: unless-stopped
+    ports:
+      - "${LABEL_STUDIO_PORT:-8080}:8080"
+    volumes:
+      - ../../data/label_studio:/label-studio/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
+      interval: 30s
+      timeout: 8s
+      retries: 6
+      start_period: 30s

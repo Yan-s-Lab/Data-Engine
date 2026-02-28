@@ -90,6 +90,13 @@ Structure is **reasonable for CLI-first research iteration**:
   - declarative model/weights manifest reused from historical infra workflow
 - `third_party/comfyui/download_models.sh`
   - model downloader for HuggingFace/Civitai targets into `data/comfyui/models`
+- `third_party/label_studio/docker-compose.label-studio.yml`
+  - Label Studio third-party subsystem compose entry (API/UI + persisted local data volume)
+- `third_party/label_studio/label_studio_ctl.sh`
+  - check-first startup controller for Label Studio (`ensure/check/status/start/stop/logs`)
+  - `ensure` probes `/api/health` (fallback `/health`) first, then starts via docker compose when unavailable
+- `third_party/label_studio/.env.example`
+  - configurable image/container-name/port for local Label Studio bootstrap
 - `synth/comfyui_to_collection.py`
   - creates collection run via `common.gateway_client.create_collection_run`
   - zips flat image directory via `common.archive.zip_flat_dir`
@@ -185,6 +192,9 @@ Current CLIs assume these external services are available:
 
 ComfyUI startup can be managed from this repo:
 - `./third_party/comfyui/comfyui_ctl.sh ensure`
+
+Label Studio startup can be managed from this repo:
+- `./third_party/label_studio/label_studio_ctl.sh ensure`
 
 ## Known Risks / Tech Debt
 
