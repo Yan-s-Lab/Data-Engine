@@ -53,6 +53,7 @@
 
 5. 文件名前缀逻辑
 - `filename_prefix.template` 可使用 `anchor_image_stem`、`sample_index`、`seed` 等变量。
+- `anchor_image_stem`/`anchor_image_name` 统一取自 norm 后的 `real_manifest.image_path`（不再使用 `original_image_path`）。
 
 6. manifest 与输出行为
 - `generate.manifest.write_trace_artifacts`（默认 `false`）：
