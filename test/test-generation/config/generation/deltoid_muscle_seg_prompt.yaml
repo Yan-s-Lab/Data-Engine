@@ -1,6 +1,6 @@
 run:
   # Output: 运行产物目录 = {artifacts_root}/{run_id}
-  run_id: prompt_generation_test
+  run_id: prompt_generation_test3
   artifacts_root: test/test-generation/runs/yk003
 
 generate:
@@ -10,9 +10,10 @@ generate:
   # Input:
   # prompt-only 任务不依赖 real anchors，本配置故意不提供 real_manifest。
   # 生成总量由 max_synth_samples 控制。
-  synth_per_real: 1
-  max_synth_samples: 2
-  seed_base: 20260225
+  # For Pure Prompt Task, there is no need configuration for below field
+  # synth_per_real: 1
+  max_synth_samples: 12
+  seed_base: 202602251
 
   manifest:
     # Output schema: prompt-only 路由
@@ -49,9 +50,12 @@ generate:
       input_key: filename_prefix
       template: "{run_id}_{sample_index}_{seed}"
 
-    # Output: 每个 ComfyUI prompt job 最多接收几张输出图
-    # 注意：要覆盖 workflow 里的 batch_size 时，该值应 >= batch_size。
-    max_outputs_per_job: 2
+    # Implement -> API graph 注入（真实控制 ComfyUI 单个 running 的产图数）
+    batch_size:
+      # 对应 workflow 中 EmptySD3LatentImage 节点
+      node_id: "27"
+      input_key: batch_size
+      value: 4
 
     # Output 文件落地策略
     persist_outputs: false

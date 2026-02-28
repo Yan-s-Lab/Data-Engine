@@ -71,6 +71,24 @@ def set_workflow_seed(
     workflow.setdefault(seed_node_id, {}).setdefault("inputs", {})[seed_input_key] = seed
 
 
+def set_workflow_batch_size(workflow: Dict[str, Any], batch_size_cfg: Dict[str, Any]) -> int | None:
+    node_id = str(batch_size_cfg.get("node_id", "")).strip()
+    if not node_id:
+        return None
+    input_key = str(batch_size_cfg.get("input_key", "batch_size")).strip() or "batch_size"
+    raw_value = batch_size_cfg.get("value", None)
+    if raw_value is None:
+        raise ValueError("generate.comfyui.batch_size.value is required when batch_size.node_id is set")
+    try:
+        value = int(raw_value)
+    except Exception as exc:
+        raise ValueError("generate.comfyui.batch_size.value must be an integer") from exc
+    if value <= 0:
+        raise ValueError("generate.comfyui.batch_size.value must be > 0")
+    workflow.setdefault(node_id, {}).setdefault("inputs", {})[input_key] = value
+    return value
+
+
 class _SafeFormatDict(dict):
     def __missing__(self, key: str) -> str:
         return "{" + key + "}"

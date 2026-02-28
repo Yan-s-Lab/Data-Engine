@@ -76,8 +76,6 @@ generate:
     timeout_sec: 1800
     # history 轮询间隔秒。
     poll_interval_sec: 1.0
-    # 每个 prompt 最多下载多少张输出图。
-    max_outputs_per_job: 1
     # 锚图尺寸过滤：超过阈值的 real image 直接跳过，不参与引导生成。
     anchor_filter:
       # 限制最长边；例如 1536 会跳过 3500x2333 / 3744x4959 这类大图。

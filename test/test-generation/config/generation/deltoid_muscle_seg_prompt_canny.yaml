@@ -59,7 +59,6 @@ generate:
         upload_overwrite: true
         upload_subfolder: ""
 
-    max_outputs_per_job: 1
     anchor_filter:
       max_long_edge: 1980
 

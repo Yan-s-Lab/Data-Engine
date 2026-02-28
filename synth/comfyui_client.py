@@ -112,19 +112,15 @@ def download_history_outputs(
     base_url: str,
     history_entry: Dict[str, Any],
     out_dir: Path,
-    max_outputs_per_job: int,
     persist_outputs: bool,
     comfy_output_dir: Path,
 ) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     outputs = history_entry.get("outputs", {})
-    output_idx = 0
 
     for node_id, node_out in outputs.items():
         images = node_out.get("images", [])
         for image in images:
-            if max_outputs_per_job > 0 and output_idx >= max_outputs_per_job:
-                return rows
             filename = str(image["filename"])
             subfolder = str(image.get("subfolder", ""))
             img_type = str(image.get("type", "output"))
@@ -158,5 +154,4 @@ def download_history_outputs(
                     "comfy_type": img_type,
                 }
             )
-            output_idx += 1
     return rows

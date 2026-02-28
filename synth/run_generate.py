@@ -33,6 +33,7 @@ from synth.comfyui_workflow import (
     filter_anchor_rows_by_size,
     load_prompt_graph,
     normalize_anchor_configs,
+    set_workflow_batch_size,
     set_workflow_filename_prefix,
     set_workflow_prompt_text,
     set_workflow_seed,
@@ -118,7 +119,22 @@ def generate_with_comfyui(
     ws_fallback_to_history = bool(comfy_cfg.get("ws_fallback_to_history", True))
     seed_node_id = str(comfy_cfg.get("seed_node_id", ""))
     seed_input_key = str(comfy_cfg.get("seed_input_key", "seed"))
-    max_outputs_per_job = int(comfy_cfg.get("max_outputs_per_job", 1))
+    batch_size_cfg = comfy_cfg.get("batch_size", {})
+    if batch_size_cfg is None:
+        batch_size_cfg = {}
+    if not isinstance(batch_size_cfg, dict):
+        raise ValueError("generate.comfyui.batch_size must be a dict when provided")
+    batch_size_node_id = str(batch_size_cfg.get("node_id", "")).strip()
+    configured_batch_size = 1
+    if batch_size_node_id:
+        raw_batch_size = batch_size_cfg.get("value", None)
+        if raw_batch_size is None:
+            raise ValueError(
+                "generate.comfyui.batch_size.value is required when batch_size.node_id is set"
+            )
+        configured_batch_size = int(raw_batch_size)
+        if configured_batch_size <= 0:
+            raise ValueError("generate.comfyui.batch_size.value must be > 0")
     persist_outputs = bool(comfy_cfg.get("persist_outputs", False))
     comfy_output_dir = Path(
         str(comfy_cfg.get("output_dir", "data/comfyui/output")).strip() or "data/comfyui/output"
@@ -196,13 +212,14 @@ def generate_with_comfyui(
     }
     local_idx = 0
     job_idx = 0
-    outputs_per_job = max(max_outputs_per_job, 1)
+    outputs_per_job = max(configured_batch_size, 1)
 
     def prepare_job(idx: int, retry_count: int = 0) -> Dict[str, Any]:
         seed = seed_base + idx
         anchor = eligible_real_rows[idx % len(eligible_real_rows)]
         workflow = deepcopy(prompt_graph_template)
         set_workflow_seed(workflow, seed_node_id, seed_input_key, seed)
+        set_workflow_batch_size(workflow, batch_size_cfg)
         effective_prompt_text = set_workflow_prompt_text(
             workflow=workflow,
             prompt_cfg=prompt_cfg,
@@ -382,7 +399,6 @@ def generate_with_comfyui(
                         base_url=base_url,
                         history_entry=history_entry,
                         out_dir=img_dir,
-                        max_outputs_per_job=max_outputs_per_job,
                         persist_outputs=persist_outputs,
                         comfy_output_dir=comfy_output_dir,
                     )
@@ -449,7 +465,6 @@ def generate_with_comfyui(
                 base_url=base_url,
                 history_entry=history_entry,
                 out_dir=img_dir,
-                max_outputs_per_job=max_outputs_per_job,
                 persist_outputs=persist_outputs,
                 comfy_output_dir=comfy_output_dir,
             )

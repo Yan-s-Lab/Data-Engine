@@ -65,9 +65,9 @@
 - `generate.comfyui.persist_outputs`（默认 `false`）：
   - `false`：优先直接引用 `generate.comfyui.output_dir` 下的 ComfyUI 输出文件，不再复制到 `<run_dir>/generate/images`。
   - `true`：下载并保存到 `<run_dir>/generate/images`。
-- `generate.comfyui.max_outputs_per_job`：
-  - 控制每个 ComfyUI prompt job 读取多少张输出图。
-  - 若 workflow 设置了 latent `batch_size > 1`，该值需同步调大，否则会被本字段截断。
+- `generate.comfyui.batch_size`：
+  - 通过 `node_id/input_key/value` 直接注入 workflow 节点输入，真实控制单个 ComfyUI prompt job 的产图数量。
+  - 示例：`node_id=27, input_key=batch_size, value=4`（对应 `EmptySD3LatentImage.inputs.batch_size`）。
 
 核心追踪字段（trace）：
 - `synthetic_id`, `synthetic_image_name`, `synthetic_image_path`

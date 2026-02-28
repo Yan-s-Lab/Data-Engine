@@ -57,12 +57,17 @@ generate:
       dataloader_config: configs/examples/dataloader_norm_test_generation_yk003_managed.yaml
       # 输出文件前缀模板（纯 prompt 模式不依赖 anchor image 名）。
       template: "{run_id}_{sample_index}_{seed}"
+    batch_size:
+      # EmptySD3LatentImage 节点 ID。
+      node_id: "27"
+      # latent batch 大小字段名。
+      input_key: batch_size
+      # 单个 ComfyUI running 的真实产图数量。
+      value: 1
     # 单任务超时秒数。
     timeout_sec: 1800
     # history 轮询间隔秒。
     poll_interval_sec: 1.0
-    # 每个 prompt 最多下载多少张输出图。
-    max_outputs_per_job: 1
     # false: 直接引用 data/comfyui/output，不再复制到 run_dir/generate/images。
     persist_outputs: false
     # ComfyUI output 类型文件在宿主机上的路径。
