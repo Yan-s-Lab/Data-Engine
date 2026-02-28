@@ -1,0 +1,34 @@
+{
+  "stage": "dataloader",
+  "run_dir": "test/test-generation/runs/yk003_deltoid_muscle_seg_datanorm",
+  "real_dir": "test/test-generation/yk-001_arm_deltoid_muscle_seg",
+  "image_dir": "test/test-generation/yk-001_arm_deltoid_muscle_seg/images",
+  "real_zip": null,
+  "total_real_samples": 3,
+  "label_dir": "test/test-generation/yk-001_arm_deltoid_muscle_seg/labels",
+  "require_labels": false,
+  "canonicalize_names": true,
+  "services_id": "yk003",
+  "filename_template": "${services_id}_${task_name}_${seq_id_padded}",
+  "target_image_ext": ".png",
+  "naming_task_name": "deltoid_muscle_seg",
+  "normalized_root_dir": "test/test-generation/runs/yk003_deltoid_muscle_seg_datanorm/dataloader/normalized",
+  "normalized_image_dir": "test/test-generation/runs/yk003_deltoid_muscle_seg_datanorm/dataloader/normalized/images",
+  "normalized_label_dir": "test/test-generation/runs/yk003_deltoid_muscle_seg_datanorm/dataloader/normalized/labels",
+  "samples_missing_label_count": 3,
+  "samples_missing_label_preview": [
+    "yk-003_arm_deltoid_muscle_0013",
+    "yk-003_arm_deltoid_muscle_0095",
+    "yk-003_arm_deltoid_muscle_0126"
+  ],
+  "resolution": {
+    "mean_width": 964.0,
+    "mean_height": 1082.0,
+    "min_width": 612,
+    "max_width": 1524,
+    "min_height": 408,
+    "max_height": 1528
+  },
+  "manifest": "test/test-generation/runs/yk003_deltoid_muscle_seg_datanorm/dataloader/real_manifest.jsonl",
+  "anchor_stats": "test/test-generation/runs/yk003_deltoid_muscle_seg_datanorm/dataloader/anchor_stats.json"
+}

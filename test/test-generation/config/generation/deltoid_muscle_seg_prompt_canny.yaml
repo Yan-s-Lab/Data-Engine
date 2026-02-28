@@ -9,7 +9,7 @@ generate:
 
   # Input: image-guided 必须提供 real anchors manifest
   real_manifest: test/test-generation/runs/yk003_deltoid_muscle_seg_datanorm/dataloader/real_manifest.jsonl
-  synth_per_real: 1
+  synth_per_real: 2
   # max_synth_samples: 20
   seed_base: 298139
 

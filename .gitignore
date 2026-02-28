@@ -7,6 +7,6 @@ minedata/
 third_party/openpose/build/
 third_party/openpose/
 third_party/runs/
-runs/
+# /runs/
 **/.temp
 deploy/pipeline/.env
