@@ -57,8 +57,7 @@ generate:
       input_key: batch_size
       value: 3
 
-    # Output 文件落地策略
-    persist_outputs: false
+    # Output 路径：直接引用 ComfyUI 挂载输出目录（不做下载/复制）
     output_dir: data/comfyui/output
 
 pipeline:

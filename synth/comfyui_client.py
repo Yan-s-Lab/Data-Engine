@@ -109,10 +109,7 @@ def wait_websocket_executing_done(
 
 
 def download_history_outputs(
-    base_url: str,
     history_entry: Dict[str, Any],
-    out_dir: Path,
-    persist_outputs: bool,
     comfy_output_dir: Path,
 ) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
@@ -124,23 +121,16 @@ def download_history_outputs(
             filename = str(image["filename"])
             subfolder = str(image.get("subfolder", ""))
             img_type = str(image.get("type", "output"))
+            if img_type != "output":
+                continue
             sample_id = Path(filename).stem
             out_path = (
                 comfy_output_dir / subfolder / filename
                 if subfolder
                 else comfy_output_dir / filename
             )
-
-            if persist_outputs or not out_path.exists():
-                out_dir.mkdir(parents=True, exist_ok=True)
-                resp = requests.get(
-                    f"{base_url}/view",
-                    params={"filename": filename, "subfolder": subfolder, "type": img_type},
-                    timeout=60,
-                )
-                resp.raise_for_status()
-                out_path = out_dir / filename
-                out_path.write_bytes(resp.content)
+            if not out_path.exists():
+                continue
 
             rows.append(
                 {

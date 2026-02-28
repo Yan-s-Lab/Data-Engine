@@ -100,7 +100,7 @@ def generate_with_local_stub(
 
 
 def generate_with_comfyui(
-    real_rows: List[Dict[str, Any]], gen_cfg: Dict[str, Any], img_dir: Path
+    real_rows: List[Dict[str, Any]], gen_cfg: Dict[str, Any]
 ) -> List[Dict[str, Any]]:
     comfy_cfg = gen_cfg.get("comfyui", {})
     if not isinstance(comfy_cfg, dict):
@@ -135,7 +135,6 @@ def generate_with_comfyui(
         configured_batch_size = int(raw_batch_size)
         if configured_batch_size <= 0:
             raise ValueError("generate.comfyui.batch_size.value must be > 0")
-    persist_outputs = bool(comfy_cfg.get("persist_outputs", False))
     comfy_output_dir = Path(
         str(comfy_cfg.get("output_dir", "data/comfyui/output")).strip() or "data/comfyui/output"
     )
@@ -396,10 +395,7 @@ def generate_with_comfyui(
 
                 for idx, meta, history_entry in reversed(ready_jobs):
                     out_rows = download_history_outputs(
-                        base_url=base_url,
                         history_entry=history_entry,
-                        out_dir=img_dir,
-                        persist_outputs=persist_outputs,
                         comfy_output_dir=comfy_output_dir,
                     )
                     if out_rows:
@@ -462,10 +458,7 @@ def generate_with_comfyui(
                     raise
 
             out_rows = download_history_outputs(
-                base_url=base_url,
                 history_entry=history_entry,
-                out_dir=img_dir,
-                persist_outputs=persist_outputs,
                 comfy_output_dir=comfy_output_dir,
             )
             if out_rows:
@@ -571,7 +564,7 @@ def main() -> None:
         img_dir.mkdir(parents=True, exist_ok=True)
         synth_rows = generate_with_local_stub(real_rows, gen_cfg, img_dir)
     elif backend == "comfyui":
-        synth_rows = generate_with_comfyui(real_rows, gen_cfg, img_dir)
+        synth_rows = generate_with_comfyui(real_rows, gen_cfg)
     else:
         raise ValueError(f"unsupported generate.backend: {backend}")
 

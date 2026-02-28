@@ -62,9 +62,9 @@
   - 写 `synth_trace_manifest.jsonl`。
 - `generate.manifest.guide_type: prompt|image_guided`（默认 `prompt`）：
   - 手动指定本次任务 guide 类型，避免自动推断复杂度。
-- `generate.comfyui.persist_outputs`（默认 `false`）：
-  - `false`：优先直接引用 `generate.comfyui.output_dir` 下的 ComfyUI 输出文件，不再复制到 `<run_dir>/generate/images`。
-  - `true`：下载并保存到 `<run_dir>/generate/images`。
+- `generate.comfyui.output_dir`（默认 `data/comfyui/output`）：
+  - generation 只引用 ComfyUI 挂载输出目录中的文件，不再下载/复制图片到 `<run_dir>/generate/images`。
+  - 仅接收 ComfyUI `type=output`（通常是 `SaveImage`）产物；`PreviewImage` 等中间 `temp` 输出会被忽略。
 - `generate.comfyui.batch_size`：
   - 通过 `node_id/input_key/value` 直接注入 workflow 节点输入，真实控制单个 ComfyUI prompt job 的产图数量。
   - 示例：`node_id=27, input_key=batch_size, value=4`（对应 `EmptySD3LatentImage.inputs.batch_size`）。

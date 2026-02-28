@@ -1,6 +1,6 @@
 run:
   # Output: 运行产物目录 = {artifacts_root}/{run_id}
-  run_id: prompt_canny_generation_test
+  run_id: prompt_canny_generation_test2
   artifacts_root: test/test-generation/runs/yk003
 
 generate:
@@ -9,8 +9,8 @@ generate:
 
   # Input: image-guided 必须提供 real anchors manifest
   real_manifest: test/test-generation/runs/yk003_deltoid_muscle_seg_datanorm/dataloader/real_manifest.jsonl
-  synth_per_real: 2
-  # max_synth_samples: 20
+  synth_per_real: 1
+  max_synth_samples: 10
   seed_base: 298139
 
   manifest:
@@ -34,9 +34,7 @@ generate:
     timeout_sec: 1800
     poll_interval_sec: 1.0
 
-    # Output 文件落地策略
-    # false: 直接引用 ComfyUI output_dir，不复制到 run_dir/generate/images
-    persist_outputs: false
+    # Output 路径：直接引用 ComfyUI 挂载输出目录（不做下载/复制）
     output_dir: data/comfyui/output
 
     # Implement -> API graph 注入（会覆盖 workflow 中对应 node.inputs）
