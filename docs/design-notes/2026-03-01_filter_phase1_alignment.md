@@ -143,5 +143,5 @@ Orchestration → Components → Core
 - [x] Code changes implemented
 - [x] Tests added/updated
 - [x] Docs updated
-- [ ] Git commit message:
-- [ ] Pushed to remote
+- [x] Git commit message: `filter: align phase1 dual-signal with style constraints and config contracts`
+- [x] Pushed to remote
