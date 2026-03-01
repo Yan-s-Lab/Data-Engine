@@ -98,18 +98,15 @@ filter:
     anchor_sid_fields:
       - guide_image_id
 
-  policy:
-    decision: phase1_v1
+  phase1_dual_signal:
+    enabled: true
+    target_source: synthetic
+    prompt_accept_threshold: 0.72
+    prompt_uncertain_threshold: 0.62
+    pair_accept_threshold: 0.85
+    pair_uncertain_threshold: 0.75
+    missing_pair_policy: uncertain
+    hard_reject: false
 
-    # v1: guided 先过最低资格，再按 s_final 取 Top-K；其余进 uncertain。
-    ranking_review:
-      enabled: true
-      target_source: synthetic
-      rank_metric: s_final
-      keep_top_k: 6
-      review_rest: true
-      guided_min_anchor: 0.85
-      # 由 real anchor 的 prompt 分位数自动标定阈值（优先于 guided_min_prompt）。
-      guided_min_prompt_from_real_quantile: q10
-      guided_min_prompt: -1.0
-      hard_reject: false
+  policy:
+    decision: phase1_dual_signal

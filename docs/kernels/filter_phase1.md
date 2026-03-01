@@ -7,6 +7,7 @@
 入口脚本：
 - `filter/run_filter.py`
 - 当前仅支持：`filter.mode=compose` + `policy.decision=phase1_dual_signal`
+  - 兼容旧值：`policy.decision=phase1_v1` 会被归一化到 `phase1_dual_signal`
 
 ## 1.1 模块化实现（当前）
 

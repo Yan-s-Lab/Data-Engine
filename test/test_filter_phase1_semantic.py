@@ -8,11 +8,25 @@ import unittest
 from filter.run_filter import (
     _apply_dual_signal_selection,
     _inject_anchor_real_rows,
+    _resolve_decision_policy,
     _resolve_filter_prompt_text,
 )
 
 
 class FilterPhase1SemanticTest(unittest.TestCase):
+    def test_resolve_decision_policy_accepts_legacy_alias(self) -> None:
+        self.assertEqual(
+            _resolve_decision_policy({"policy": {"decision": "phase1_v1"}}),
+            "phase1_dual_signal",
+        )
+        self.assertEqual(
+            _resolve_decision_policy({"policy": {"decision": "phase1_dual_signal"}}),
+            "phase1_dual_signal",
+        )
+
+    def test_resolve_decision_policy_rejects_unknown_value(self) -> None:
+        with self.assertRaises(ValueError):
+            _resolve_decision_policy({"policy": {"decision": "weighted"}})
 
     def test_dual_signal_selection(self) -> None:
         score_rows = [

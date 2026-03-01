@@ -24,6 +24,16 @@ from filter.pipeline_engine import (
 )
 
 
+def _resolve_decision_policy(filter_cfg: Dict[str, Any]) -> str:
+    policy_cfg = dict(filter_cfg.get("policy", {}))
+    raw_policy = str(policy_cfg.get("decision", "phase1_dual_signal")).strip().lower()
+    if raw_policy in {"phase1_dual_signal", "phase1_v1"}:
+        return "phase1_dual_signal"
+    raise ValueError(
+        "Only policy.decision in {phase1_dual_signal, phase1_v1} is supported"
+    )
+
+
 def _apply_dual_signal_selection(
     score_rows: List[Dict[str, Any]],
     filter_cfg: Dict[str, Any],
@@ -51,10 +61,7 @@ def main() -> None:
     if mode != "compose":
         raise ValueError(f"unsupported filter.mode: {mode}. Only compose is supported.")
 
-    policy_cfg = dict(filter_cfg.get("policy", {}))
-    decision_policy = str(policy_cfg.get("decision", "phase1_dual_signal")).strip().lower()
-    if decision_policy != "phase1_dual_signal":
-        raise ValueError("Only policy.decision=phase1_dual_signal is supported")
+    _resolve_decision_policy(filter_cfg)
 
     prompt_source = _resolve_filter_prompt_text(filter_cfg=filter_cfg, config_path=config_path)
     clip_cfg = filter_cfg.get("clip")
