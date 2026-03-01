@@ -1,6 +1,6 @@
 run:
   # Output: 运行产物目录 = {artifacts_root}/{run_id}
-  run_id: body_pose__prompt
+  run_id: body_pose__prompt_canny
   artifacts_root: artifacts/runs/yk003/body_pose_generation
 
 generate:
@@ -8,7 +8,7 @@ generate:
   backend: comfyui
 
   # Input: image-guided 必须提供 real anchors manifest
-  real_manifest: artifacts/runs/yk003/body_pose/dataloader/real_manifest.jsonl
+  real_manifest: artifacts/runs/yk003/body_pose/yk003_body_datanorm/dataloader/real_manifest.jsonl
   synth_per_real: 1
   # max_synth_samples: 6
   seed_base: 999999999

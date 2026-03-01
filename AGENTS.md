@@ -1,92 +1,143 @@
 # AGENTS.md
 
-## Agent Execution Rules (Mandatory)
-
-This document defines **how agents must operate in this repository**.
-
-It does not describe system architecture, project vision, or business goals.
-It exists solely to constrain execution behavior and prevent scope drift.
+## Purpose
+This file defines **mandatory execution constraints** for agents working in this repository.
+It exists to prevent scope drift, feature hacking, uncontrolled coupling, and “god files”.
 
 ---
 
-## 1. Pre-Execution Requirements (Must Do Before Any Action)
+## 0) Mandatory References (Must Read)
+Agents MUST read and follow:
 
-Before implementing, modifying, or proposing any functionality, agents **must**:
+1) `docs/architecture/style.md`  
+   - Implementation style, layering rules, step interfaces, config conventions.
 
-1. Read relevant documents under the `docs/` directory.
-2. Review existing logs, notes, or records related to the target functionality.
-3. Inspect the current directory structure and related subdirectories.
-4. Examine existing code implementations that are relevant to the task.
+2) `docs/design-notes/template.md`  
+   - The required Design Note format and content.
 
-Agents must **not**:
-- Start implementation based only on assumptions or prior context.
-- Propose changes without checking whether similar work already exists.
-- Skip document or code inspection.
+3) `./.temp/methods.tex`  
+   - Primary authority for paper-level methodology when a design decision is disputed.
 
-If required context is missing or unclear, the agent must stop and ask.
-
----
-
-## 2. Execution Scope Constraint (Critical)
-
-Agents must strictly operate **within the scope of the current task or request**.
-
-Agents must **not**:
-- Introduce designs for future stages or unrelated tasks.
-- Extend implementation beyond the explicitly requested functionality.
-- Combine multiple independent tasks into a single execution.
-- Perform speculative refactors or architectural changes.
-
-Over-design and cross-task expansion are explicitly disallowed.
+**Conflict rule:** If `AGENTS.md` conflicts with `docs/architecture/style.md`, `AGENTS.md` wins.  
+If ambiguity remains, STOP and ask the project owner.
 
 ---
 
-## 3. Decision Authority and Dispute Handling
+## 1) Pre-Execution Requirements (Must Do Before Any Code Change)
 
-If a requirement, design choice, or behavior is unclear or disputed:
+Before implementing/modifying ANY functionality, agents must:
 
-1. The agent must consult `./.temp/methods.tex` as the **primary reference** for
-   paper-level methodology and system design intent.
-2. If ambiguity remains, the agent must discuss the issue with the project owner
-   and obtain explicit confirmation before proceeding.
+1) Read relevant docs under `docs/` (including style.md)
+2) Inspect the current directory structure relevant to the task
+3) Search existing code for similar implementations to reuse
+4) Check for existing configs/schema/registries that already support the request
 
-Agents must **not**:
-- Resolve ambiguities independently.
-- Introduce alternative designs without discussion.
-- Deviate from the methodology described in `methods.tex`.
+If required context is missing or unclear, STOP and ask.
 
 ---
 
-## 4. Post-Execution Obligations (Mandatory)
+## 2) Design-First Gate (No Design Note = No Coding)
 
-After completing any functional implementation or modification, agents **must**:
+Before writing code, agents MUST create or update a Design Note:
 
-1. Update relevant documentation under the `docs/` directory, or
-   create a concise implementation or change log if none exists.
-2. Commit the changes to git with a meaningful message.
-3. Push the commit to the repository.
+- Location: `docs/design-notes/YYYY-MM-DD_<topic>.md`
+- Format: MUST follow `docs/design-notes/template.md`
 
-Changes without documentation or git commits are considered **incomplete**.
-
----
-
-## 5. Prohibited Behaviors
-
-Agents must **not**:
-- Perform silent changes.
-- Modify functionality without recording it.
-- Continue implementing additional features after task completion.
-- Redefine task goals during execution.
-
-When the requested task is completed, the agent must stop.
+The Design Note MUST explicitly state:
+- what layer(s) are modified and why
+- the interface signatures and data contracts
+- the exact config keys involved
+- how the change conforms to `docs/architecture/style.md`
+- minimal test plan
 
 ---
 
-## 6. Termination Rule
+## 3) Layering and Dependency Direction (Hard Rule)
 
-Once the specified task is finished and recorded:
+Code MUST conform to the layering model:
 
-**Do not continue working unless explicitly instructed.**
+- Orchestration (CLI/Pipeline/Entry) → Components (Steps) → Core (Pure libs)
 
-## 7. Currrent Enviroment
+Allowed imports:
+- Orchestration may import Components and Core
+- Components may import Core
+- Core may import only Core
+
+Forbidden:
+- Core importing Components or Orchestration
+- Components importing Orchestration
+- Steps calling other steps directly to bypass the orchestrator
+
+---
+
+## 4) Config-Driven Pipeline Rule (Critical)
+
+Any change affecting workflow ordering MUST be expressed via configuration:
+- Pipeline step order MUST be defined in config (e.g., `pipeline.steps`)
+- Step resolution MUST use a registry/factory (step name → implementation)
+
+Forbidden:
+- Hardcoding step order in `main()` or CLI handlers
+- “Hidden” behavior toggles without config keys
+- Long if/else chains in entry code to simulate a pipeline
+
+---
+
+## 5) Complexity and Decomposition Policy (Hard Rule)
+
+Line count is a SIGNAL, not an automatic violation.
+
+### Soft Thresholds (Design Review Triggers)
+- If a single file exceeds ~400 lines, the agent MUST:
+  1) justify why the file represents a single coherent responsibility, OR
+  2) propose a meaningful decomposition with clear responsibility boundaries
+
+- If a single function exceeds ~80 lines, the agent MUST:
+  1) explain why splitting would reduce clarity or cohesion, OR
+  2) refactor into semantically meaningful sub-functions
+
+The justification MUST be documented in the Design Note.
+
+Deep branching rule:
+- If adding a third conditional branch to support feature variation,
+  refactor into strategy/registry dispatch selected by config.
+
+### Prohibited Decompositions
+Agents must NOT:
+- split code solely to satisfy line counts
+- create “utility” or “helper” modules without a clear semantic role
+- introduce thin pass-through functions with no independent meaning
+
+
+## 6) Post-Execution Obligations (Required for Completion)
+
+After implementation/modification, agents MUST:
+
+1) Update docs:
+   - finalize Design Note + update relevant docs under `docs/`
+2) Add/Update tests:
+   - unit tests for core/components, and minimal integration test if pipeline changes
+3) Git discipline:
+   - commit with meaningful message
+   - push to repository
+
+Changes without documentation, tests, commits, and push are incomplete.
+
+---
+
+## 7) Scope Constraint and Termination Rule
+
+Agents MUST operate strictly within the scope of the current request.
+
+Agents MUST NOT:
+- introduce unrelated features
+- perform speculative refactors
+- redesign architecture beyond what the task requires
+
+Once the requested task is complete and recorded (docs + tests + commit + push),
+STOP and do not continue unless explicitly instructed.
+
+---
+
+## 8) Current Environment
 conda name: "dataengine"
