@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from filter.run_filter import (
+    _apply_dual_signal_selection,
     _apply_topk_review_selection,
     _inject_anchor_real_rows,
     _resolve_filter_prompt_text,
@@ -111,6 +112,69 @@ class FilterPhase1SemanticTest(unittest.TestCase):
         self.assertEqual(state["eligible_total"], 1)
         self.assertEqual(score_rows[0]["decision"], "reject")
         self.assertEqual(score_rows[1]["decision"], "accept")
+
+    def test_dual_signal_selection(self) -> None:
+        score_rows = [
+            {"sample_id": "r1", "source": "real", "decision": "accept", "keep": True},
+            {
+                "sample_id": "s_guided_ok",
+                "source": "synthetic",
+                "phase1_route": "guided",
+                "s_prompt": 0.82,
+                "s_anchor": 0.88,
+                "s_anchor_hit": 1.0,
+                "decision": "uncertain",
+                "keep": False,
+            },
+            {
+                "sample_id": "s_guided_miss",
+                "source": "synthetic",
+                "phase1_route": "guided",
+                "s_prompt": 0.91,
+                "s_anchor": 0.0,
+                "s_anchor_hit": 0.0,
+                "decision": "uncertain",
+                "keep": False,
+            },
+            {
+                "sample_id": "s_prompt_ok",
+                "source": "synthetic",
+                "phase1_route": "prompt_only",
+                "s_prompt": 0.74,
+                "s_anchor": 0.0,
+                "s_anchor_hit": 0.0,
+                "decision": "uncertain",
+                "keep": False,
+            },
+            {
+                "sample_id": "s_prompt_low",
+                "source": "synthetic",
+                "phase1_route": "prompt_only",
+                "s_prompt": 0.42,
+                "s_anchor": 0.0,
+                "s_anchor_hit": 0.0,
+                "decision": "uncertain",
+                "keep": False,
+            },
+        ]
+        filter_cfg = {
+            "phase1_dual_signal": {
+                "enabled": True,
+                "target_source": "synthetic",
+                "prompt_accept_threshold": 0.7,
+                "prompt_uncertain_threshold": 0.5,
+                "pair_accept_threshold": 0.8,
+                "pair_uncertain_threshold": 0.6,
+                "missing_pair_policy": "uncertain",
+                "hard_reject": True,
+            }
+        }
+        state = _apply_dual_signal_selection(score_rows=score_rows, filter_cfg=filter_cfg)
+        self.assertTrue(state["enabled"])
+        self.assertEqual(score_rows[1]["decision"], "accept")
+        self.assertEqual(score_rows[2]["decision"], "uncertain")
+        self.assertEqual(score_rows[3]["decision"], "accept")
+        self.assertEqual(score_rows[4]["decision"], "reject")
 
     def test_prompt_text_can_reuse_generate_template_file(self) -> None:
         with tempfile.TemporaryDirectory(prefix="filter_phase1_prompt_") as td:

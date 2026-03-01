@@ -184,6 +184,112 @@ def _apply_topk_review_selection(
     }
 
 
+def _apply_dual_signal_selection(
+    score_rows: List[Dict[str, Any]],
+    filter_cfg: Dict[str, Any],
+) -> Dict[str, Any]:
+    dual_cfg = dict(filter_cfg.get("phase1_dual_signal", {}))
+    if not bool(dual_cfg.get("enabled", False)):
+        return {"enabled": False}
+
+    target_source = str(dual_cfg.get("target_source", "synthetic")).strip()
+    hard_reject = bool(dual_cfg.get("hard_reject", False))
+    prompt_accept_threshold = float(dual_cfg.get("prompt_accept_threshold", 0.5))
+    prompt_uncertain_threshold = float(dual_cfg.get("prompt_uncertain_threshold", prompt_accept_threshold))
+    pair_accept_threshold = float(dual_cfg.get("pair_accept_threshold", 0.5))
+    pair_uncertain_threshold = float(dual_cfg.get("pair_uncertain_threshold", pair_accept_threshold))
+    missing_pair_policy = str(dual_cfg.get("missing_pair_policy", "uncertain")).strip().lower()
+    if missing_pair_policy not in {"uncertain", "reject"}:
+        missing_pair_policy = "uncertain"
+
+    accept_count = 0
+    uncertain_count = 0
+    reject_count = 0
+    guided_total = 0
+    prompt_only_total = 0
+
+    for row in score_rows:
+        src = str(row.get("source", ""))
+        if src != target_source:
+            if str(row.get("decision", "")) == "accept":
+                accept_count += 1
+            elif str(row.get("decision", "")) == "uncertain":
+                uncertain_count += 1
+            else:
+                reject_count += 1
+            continue
+
+        route = str(row.get("phase1_route", "prompt_only")).strip()
+        s_prompt = float(row.get("s_prompt", 0.0))
+        s_anchor = float(row.get("s_anchor", 0.0))
+        s_anchor_hit = float(row.get("s_anchor_hit", 0.0)) > 0.0
+
+        if route == "guided":
+            guided_total += 1
+            if not s_anchor_hit:
+                if missing_pair_policy == "reject" and hard_reject:
+                    row["decision"] = "reject"
+                    row["decision_basis"] = "phase1_dual_signal_guided_pair_missing_reject"
+                    reject_count += 1
+                else:
+                    row["decision"] = "uncertain"
+                    row["decision_basis"] = "phase1_dual_signal_guided_pair_missing_uncertain"
+                    uncertain_count += 1
+                row["keep"] = row["decision"] == "accept"
+                continue
+
+            pass_prompt_accept = s_prompt >= prompt_accept_threshold
+            pass_pair_accept = s_anchor >= pair_accept_threshold
+            pass_prompt_uncertain = s_prompt >= prompt_uncertain_threshold
+            pass_pair_uncertain = s_anchor >= pair_uncertain_threshold
+
+            if pass_prompt_accept and pass_pair_accept:
+                row["decision"] = "accept"
+                row["decision_basis"] = "phase1_dual_signal_guided_accept"
+                accept_count += 1
+            elif hard_reject and (not pass_prompt_uncertain or not pass_pair_uncertain):
+                row["decision"] = "reject"
+                row["decision_basis"] = "phase1_dual_signal_guided_reject"
+                reject_count += 1
+            else:
+                row["decision"] = "uncertain"
+                row["decision_basis"] = "phase1_dual_signal_guided_uncertain"
+                uncertain_count += 1
+            row["keep"] = row["decision"] == "accept"
+            continue
+
+        prompt_only_total += 1
+        if s_prompt >= prompt_accept_threshold:
+            row["decision"] = "accept"
+            row["decision_basis"] = "phase1_dual_signal_prompt_accept"
+            accept_count += 1
+        elif hard_reject and s_prompt < prompt_uncertain_threshold:
+            row["decision"] = "reject"
+            row["decision_basis"] = "phase1_dual_signal_prompt_reject"
+            reject_count += 1
+        else:
+            row["decision"] = "uncertain"
+            row["decision_basis"] = "phase1_dual_signal_prompt_uncertain"
+            uncertain_count += 1
+        row["keep"] = row["decision"] == "accept"
+
+    return {
+        "enabled": True,
+        "target_source": target_source,
+        "hard_reject": hard_reject,
+        "prompt_accept_threshold": prompt_accept_threshold,
+        "prompt_uncertain_threshold": prompt_uncertain_threshold,
+        "pair_accept_threshold": pair_accept_threshold,
+        "pair_uncertain_threshold": pair_uncertain_threshold,
+        "missing_pair_policy": missing_pair_policy,
+        "guided_total": guided_total,
+        "prompt_only_total": prompt_only_total,
+        "accept_after_selection": accept_count,
+        "uncertain_after_selection": uncertain_count,
+        "reject_after_selection": reject_count,
+    }
+
+
 def _resolve_prompt_score_mode(clip_cfg: Dict[str, Any], model_id: str) -> str:
     explicit = str(clip_cfg.get("prompt_score_mode", "")).strip().lower()
     if explicit:
@@ -596,7 +702,14 @@ def run_composed_clip_filter(
     )
     device = str(clip_cfg.get("device", "auto"))
     prompt_text = str(clip_cfg.get("prompt_text", filter_cfg.get("prompt_text", "")))
-    prompt_score_mode = _resolve_prompt_score_mode(clip_cfg=clip_cfg, model_id=model_id)
+    dual_signal_cfg = dict(filter_cfg.get("phase1_dual_signal", {}))
+    if bool(dual_signal_cfg.get("enabled", False)):
+        prompt_score_mode = "siglip_sigmoid" if "siglip" in model_id.strip().lower() else _resolve_prompt_score_mode(
+            clip_cfg=clip_cfg,
+            model_id=model_id,
+        )
+    else:
+        prompt_score_mode = _resolve_prompt_score_mode(clip_cfg=clip_cfg, model_id=model_id)
     cache_path = Path(str(clip_cfg.get("embed_cache_path", filter_dir / "clip_embed_cache.json")))
     phase1_cfg = dict(filter_cfg.get("phase1_semantic", {}))
     prompt_field = str(phase1_cfg.get("prompt_field", "effective_prompt_text"))
@@ -682,6 +795,8 @@ def run_composed_clip_filter(
         decision = choose_decision(s_final, accept_threshold, uncertain_low, uncertain_high)
         decision_basis = "phase1_v1_score"
         keep = decision == "accept"
+        pair = paired_scores.get(sample_id, {})
+        s_anchor_hit = float(pair.get("s_semantic_pair_hit", 0.0))
         if keep_real_always and source == "real":
             decision = "accept"
             keep = True
@@ -694,6 +809,7 @@ def run_composed_clip_filter(
                 "source": source,
                 "phase1_route": phase1_route,
                 "s_anchor": round(s_anchor, 6),
+                "s_anchor_hit": round(s_anchor_hit, 6),
                 "s_prompt": round(s_prompt, 6),
                 "w_anchor": round(w_anchor, 6),
                 "w_prompt": round(w_prompt, 6),
@@ -837,10 +953,17 @@ def main() -> None:
         filter_cfg=filter_cfg,
     )
 
-    ranking_state = _apply_topk_review_selection(score_rows=score_rows, filter_cfg=filter_cfg)
-    if bool(ranking_state.get("enabled", False)):
+    policy_cfg = dict(filter_cfg.get("policy", {}))
+    decision_policy = str(policy_cfg.get("decision", "phase1_v1")).strip().lower()
+    if decision_policy == "phase1_dual_signal":
+        dual_state = _apply_dual_signal_selection(score_rows=score_rows, filter_cfg=filter_cfg)
         report_extra = dict(report_extra)
-        report_extra["ranking_review"] = ranking_state
+        report_extra["phase1_dual_signal"] = dual_state
+    else:
+        ranking_state = _apply_topk_review_selection(score_rows=score_rows, filter_cfg=filter_cfg)
+        if bool(ranking_state.get("enabled", False)):
+            report_extra = dict(report_extra)
+            report_extra["ranking_review"] = ranking_state
 
     accept_set = {r["sample_id"] for r in score_rows if r.get("decision") == "accept"}
     reject_set = {r["sample_id"] for r in score_rows if r.get("decision") == "reject"}

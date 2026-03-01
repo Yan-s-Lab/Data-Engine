@@ -1,10 +1,13 @@
 run:
-  run_id: yk003_body_pose_prompt_canny_filter_phase1_20260228
-  artifacts_root: artifacts/user_runs
+  run_id: body_pose_filter
+  artifacts_root: artifacts/runs/yk003/body_pose
 
 filter:
   mode: compose
-  input_manifest: artifacts/runs/yk003/body_pose_generation/body_pose__prompt_canny/generate/synth_manifest.jsonl
+  input_manifests: 
+    - artifacts/runs/yk003/body_pose_generation/body_pose__prompt/generate/synth_manifest.jsonl
+    - artifacts/runs/yk003/body_pose_generation/body_pose__prompt_canny/generate/synth_manifest.jsonl
+
   keep_real_always: true
 
   accept_threshold: 0.72
@@ -15,16 +18,34 @@ filter:
   anchor_real_manifest: artifacts/runs/yk003/body_pose/yk003_body_datanorm/dataloader/real_manifest.jsonl
 
   clip:
-    model_id: google/siglip2-base-patch16-224
+    model_id: google/siglip2-so400m-patch16-naflex # siglip2 is better model compare with “clip / siglip...”
     device: auto
-    prompt_score_mode: cosine
-    prompt_template_file: configs/task_body_generation/generation/prompt.txt
+    prompt_score_mode: siglip_sigmoid
+    compare-texts:
+      human: 
+        - human 
+        - person
+        - human body
+      body_strucure:
+        - human's muscale is visible
+        - human's deltoid muscle is visible
+        - human's elbow is visible
+        - elbow
+        - Normal facial structure
+        - neck
+        - nose
+        - ear
+        - hands
+      negative:
+        - 不是人类
+        - 缺乏人类特征
+        - 完全失效
 
   phase1_semantic:
     enabled: true
     guided_w_anchor: 0.8
     guided_w_prompt: 0.2
-    prompt_metric: raw_cosine
+    prompt_metric: score
     prompt_field: effective_prompt_text
     guided_marker_fields:
       - guide_image_id
@@ -34,15 +55,15 @@ filter:
     anchor_sid_fields:
       - guide_image_id
 
+  phase1_dual_signal:
+    enabled: true
+    target_source: synthetic
+    prompt_accept_threshold: 0.66
+    prompt_uncertain_threshold: 0.52
+    pair_accept_threshold: 0.82
+    pair_uncertain_threshold: 0.72
+    missing_pair_policy: uncertain
+    hard_reject: false
+
   policy:
-    decision: phase1_v1
-    ranking_review:
-      enabled: true
-      target_source: synthetic
-      rank_metric: s_final
-      keep_top_ratio: 0.3
-      review_rest: true
-      guided_min_anchor: 0.85
-      guided_min_prompt_from_real_quantile: q10
-      guided_min_prompt: -1.0
-      hard_reject: false
+    decision: phase1_dual_signal

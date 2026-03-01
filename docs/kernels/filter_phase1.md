@@ -27,7 +27,7 @@
 
 - `test/test-filters/configs/filter_compose.yaml`
 
-## 4. Phase1 v1（极简）
+## 4. Phase1（Dual Signal）
 
 1. 输入清单优先级
 - `filter.input_manifests`（显式多输入，按顺序合并）
@@ -49,24 +49,21 @@
   - `input_manifest` 同级 `generate/report.json` 中的 `real_manifest`
 - 补齐行为与缺失统计写入 `report.anchor_real_injection`。
 
-2. 两个原始分数
-- `s_anchor = sim(anchor_image, synthetic_image)`（仅 guided synthetic 使用；由 `semantic_pair` 提供）
-- `s_prompt`（所有样本都会计算）：
-  - `prompt_metric=score`：`sim(prompt_text, synthetic_image)`
-  - `prompt_metric=raw_cosine`：`raw cosine in [-1, 1]`（由 cosine 映射值反算）
-  - `prompt_metric=margin_norm`：`norm( score(pos_prompt) - max(score(neg_prompts)) )`
+2. 两个原始分数（仅保留）
+- `s_prompt`（text vs image）：
+  - SigLIP2 路径固定为 `logits_per_image -> sigmoid`，范围 `[0,1]`
+- `s_anchor`（image vs image）：
+  - `sim(anchor_image, synthetic_image)`（仅 guided synthetic 使用；由 `semantic_pair` 提供）
 
-3. 一个统一总分
-- `s_final = w_anchor * s_anchor + w_prompt * s_prompt`
-- guided synthetic：`w_anchor=guided_w_anchor`，`w_prompt=guided_w_prompt`
-- prompt-only synthetic：`w_anchor=0`，`w_prompt=1`
-
-4. 一个分桶策略
-- guided 最小资格：`s_anchor >= guided_min_anchor && s_prompt > guided_min_prompt`
-- 可选：`guided_min_prompt_from_real_quantile=q05|q10|...` 时，用 real 样本 `s_prompt` 分位数覆盖 `guided_min_prompt`
-- 在资格集合内按 `s_final` 排序取 Top-K 为 `accept`
-- 其余样本进入 `uncertain`（Expert 审核池）
-- `reject=0`（仅当 `policy.ranking_review.hard_reject=true` 时允许 reject）
+3. 决策策略（`policy.decision=phase1_dual_signal`）
+- guided synthetic：
+  - accept: `s_prompt >= prompt_accept_threshold && s_anchor >= pair_accept_threshold`
+  - 否则进入 uncertain（或 `hard_reject=true` 时按 uncertain 阈值 reject）
+- prompt-only synthetic：
+  - accept: `s_prompt >= prompt_accept_threshold`
+  - 否则进入 uncertain（或 `hard_reject=true` 且低于 uncertain 阈值时 reject）
+- pair 缺失策略：
+  - `missing_pair_policy=uncertain|reject`
 
 ## 5. 运行命令
 
@@ -83,9 +80,9 @@ python filter/run_filter.py \
   - `guide_type=image_guided` 且 `guide_image_id` 非空时视为 guided
 - 若无 `guide_type`，才回退到 `guide_image_id` 等历史 marker 字段判定。
 
-2. `eligible_total` 偏低
-- 检查 `guided_min_anchor / guided_min_prompt` 是否过严。
+2. accept 过少
+- 检查 `phase1_dual_signal.prompt_accept_threshold / pair_accept_threshold` 是否过严。
 - 检查 guided 样本的 anchor 配对字段是否正确（`guide_image_id` 等）。
 
 3. 出现 reject
-- 检查是否开启了 `policy.ranking_review.hard_reject=true`。
+- 检查是否开启了 `phase1_dual_signal.hard_reject=true`，以及 `missing_pair_policy=reject`。
