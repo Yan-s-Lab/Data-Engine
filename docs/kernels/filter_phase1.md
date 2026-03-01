@@ -30,11 +30,17 @@
 ## 4. Phase1 v1（极简）
 
 1. 输入清单优先级
+- `filter.input_manifests`（显式多输入，按顺序合并）
 - `filter.input_manifest`（显式）
 - `<run_dir>/generate/synth_manifest.jsonl`（默认自动）
 - `<run_dir>/generate/mixed_manifest.jsonl`（历史兼容回退）
 - `manifest_builder`（启用时）
 - stub manifest（兜底）
+
+1.1 多输入合并去重（`filter.input_manifests`）
+- 默认按 `sample_id` 去重：`filter.input_merge_dedupe_by=sample_id`
+- 保留策略：`filter.input_merge_dedupe_keep=first|last`（默认 `first`）
+- `report.json` 会记录 `input_manifest_paths`。
 
 1.5 guided anchor 自动补齐
 - 当输入为 `synth_manifest` 且 guided 样本缺少对应 real anchor row 时，Filter 会自动尝试补齐：
@@ -72,7 +78,10 @@ python filter/run_filter.py \
 ## 6. 快速排查
 
 1. `guided_synth_count=0`
-- 检查 manifest 是否有 `guide_image_id` 等 guided 字段。
+- 优先检查 `guide_type`：
+  - `guide_type=prompt` 会视为 prompt-only
+  - `guide_type=image_guided` 且 `guide_image_id` 非空时视为 guided
+- 若无 `guide_type`，才回退到 `guide_image_id` 等历史 marker 字段判定。
 
 2. `eligible_total` 偏低
 - 检查 `guided_min_anchor / guided_min_prompt` 是否过严。

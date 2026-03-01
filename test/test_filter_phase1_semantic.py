@@ -34,6 +34,33 @@ class FilterPhase1SemanticTest(unittest.TestCase):
         self.assertEqual(state["guided_synth_count"], 1)
         self.assertEqual(state["prompt_only_synth_count"], 1)
 
+    def test_phase1_guide_type_has_priority_for_route(self) -> None:
+        rows = [
+            {
+                "sample_id": "s_prompt_typed",
+                "source": "synthetic",
+                "guide_type": "prompt",
+                "guide_image_id": "r1",
+            },
+            {
+                "sample_id": "s_image_guided_typed",
+                "source": "synthetic",
+                "guide_type": "image_guided",
+                "guide_image_id": "r2",
+            },
+        ]
+        paired_scores = {
+            "s_prompt_typed": {"s_semantic_pair": 0.95, "s_semantic_pair_hit": 1.0},
+            "s_image_guided_typed": {"s_semantic_pair": 0.75, "s_semantic_pair_hit": 1.0},
+        }
+        prompt_scores = {"s_prompt_typed": 0.4, "s_image_guided_typed": 0.3}
+        phase1_cfg = {"enabled": True, "guided_w_anchor": 0.8, "guided_w_prompt": 0.2}
+        out, state = build_phase1_semantic_scores(rows=rows, paired_scores=paired_scores, prompt_scores=prompt_scores, phase1_cfg=phase1_cfg)
+        self.assertEqual(out["s_prompt_typed"]["phase1_route"], "prompt_only")
+        self.assertEqual(out["s_image_guided_typed"]["phase1_route"], "guided")
+        self.assertEqual(state["guided_synth_count"], 1)
+        self.assertEqual(state["prompt_only_synth_count"], 1)
+
     def test_topk_review_selection(self) -> None:
         score_rows = [
             {"sample_id": "r1", "source": "real", "s_final": 1.0, "decision": "accept"},
@@ -170,7 +197,7 @@ class FilterPhase1SemanticTest(unittest.TestCase):
                 rows=rows,
                 filter_cfg=filter_cfg,
                 config_path=root / "filter_cfg.yaml",
-                input_manifest_path=None,
+                input_manifest_paths=[],
             )
             self.assertEqual(len(out_rows), 2)
             self.assertEqual(state["injected_anchor_count"], 1)

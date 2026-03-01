@@ -247,10 +247,12 @@ def _resolve_filter_input_manifest(
     *,
     filter_cfg: Dict[str, Any],
     run_dir: Path,
+    config_path: Path | None = None,
 ) -> tuple[Path | None, str]:
+    base_dir = config_path.parent if config_path is not None else ROOT
     input_manifest = filter_cfg.get("input_manifest")
     if input_manifest:
-        return Path(str(input_manifest)), "filter.input_manifest"
+        return _resolve_path_with_workspace_fallback(str(input_manifest), base_dir=base_dir), "filter.input_manifest"
 
     auto_from_generate = bool(
         filter_cfg.get(
@@ -267,6 +269,39 @@ def _resolve_filter_input_manifest(
             return mixed_manifest, "run_dir/generate/mixed_manifest.jsonl"
 
     return None, ""
+
+
+def _resolve_filter_input_manifests(
+    *,
+    filter_cfg: Dict[str, Any],
+    run_dir: Path,
+    config_path: Path | None = None,
+) -> tuple[List[Path], str]:
+    base_dir = config_path.parent if config_path is not None else ROOT
+    raw_many = filter_cfg.get("input_manifests", [])
+    manifests: List[Path] = []
+
+    if isinstance(raw_many, list):
+        for item in raw_many:
+            path_text = str(item).strip()
+            if not path_text:
+                continue
+            manifests.append(_resolve_path_with_workspace_fallback(path_text, base_dir=base_dir))
+    elif isinstance(raw_many, str):
+        if raw_many.strip():
+            manifests.append(_resolve_path_with_workspace_fallback(raw_many.strip(), base_dir=base_dir))
+
+    if manifests:
+        return manifests, "filter.input_manifests"
+
+    single_path, source = _resolve_filter_input_manifest(
+        filter_cfg=filter_cfg,
+        run_dir=run_dir,
+        config_path=config_path,
+    )
+    if single_path is None:
+        return [], source
+    return [single_path], source
 
 
 def _resolve_path_with_workspace_fallback(raw_path: str, *, base_dir: Path) -> Path:
@@ -286,7 +321,7 @@ def _resolve_anchor_real_manifest(
     *,
     filter_cfg: Dict[str, Any],
     config_path: Path,
-    input_manifest_path: Path | None,
+    input_manifest_paths: List[Path],
 ) -> Tuple[Path | None, str]:
     explicit = str(filter_cfg.get("anchor_real_manifest", "")).strip()
     if explicit:
@@ -306,19 +341,21 @@ def _resolve_anchor_real_manifest(
                         "clip.prompt_from_generate_config.generate.real_manifest",
                     )
 
-    if bool(filter_cfg.get("auto_anchor_real_manifest_from_generate_report", True)) and input_manifest_path is not None:
-        report_path = input_manifest_path.parent / "report.json"
-        if report_path.exists():
+    if bool(filter_cfg.get("auto_anchor_real_manifest_from_generate_report", True)):
+        for input_manifest_path in input_manifest_paths:
+            report_path = input_manifest_path.parent / "report.json"
+            if not report_path.exists():
+                continue
             try:
                 report = json.loads(report_path.read_text(encoding="utf-8"))
                 real_manifest = str(report.get("real_manifest", "")).strip()
                 if real_manifest:
                     return (
                         _resolve_path_with_workspace_fallback(real_manifest, base_dir=report_path.parent),
-                        "input_manifest_sibling_report.real_manifest",
+                        f"input_manifest_sibling_report.real_manifest:{input_manifest_path}",
                     )
             except json.JSONDecodeError:
-                pass
+                continue
     return None, ""
 
 
@@ -327,7 +364,7 @@ def _inject_anchor_real_rows(
     rows: List[Dict[str, Any]],
     filter_cfg: Dict[str, Any],
     config_path: Path,
-    input_manifest_path: Path | None,
+    input_manifest_paths: List[Path],
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     phase1_cfg = dict(filter_cfg.get("phase1_semantic", {}))
     if not bool(phase1_cfg.get("enabled", False)):
@@ -364,7 +401,7 @@ def _inject_anchor_real_rows(
     anchor_manifest_path, anchor_manifest_source = _resolve_anchor_real_manifest(
         filter_cfg=filter_cfg,
         config_path=config_path,
-        input_manifest_path=input_manifest_path,
+        input_manifest_paths=input_manifest_paths,
     )
     if anchor_manifest_path is None or not anchor_manifest_path.exists():
         return rows, {
@@ -417,6 +454,8 @@ def _normalize_generate_manifest_rows(rows: List[Dict[str, Any]]) -> List[Dict[s
             normalized["sample_id"] = str(normalized.get("synthetic_id", "")).strip()
         if not str(normalized.get("image_path", "")).strip():
             normalized["image_path"] = str(normalized.get("synthetic_image_path", "")).strip()
+        if not str(normalized.get("guide_image_id", "")).strip():
+            normalized["guide_image_id"] = str(normalized.get("guide_image", "")).strip()
         if not str(normalized.get("source", "")).strip():
             normalized["source"] = "synthetic"
         if not str(normalized.get("guide_image_id", "")).strip():
@@ -428,6 +467,12 @@ def _normalize_generate_manifest_rows(rows: List[Dict[str, Any]]) -> List[Dict[s
 def _is_real_guided_synth(row: Dict[str, Any], phase1_cfg: Dict[str, Any]) -> bool:
     if str(row.get("source", "")) != "synthetic":
         return False
+    guide_type = str(row.get("guide_type", "")).strip().lower()
+    if guide_type:
+        if guide_type == "prompt":
+            return False
+        if guide_type == "image_guided":
+            return bool(str(row.get("guide_image_id", "")).strip())
     marker_fields = [str(x) for x in phase1_cfg.get(
         "guided_marker_fields",
         [
@@ -714,33 +759,53 @@ def main() -> None:
         if prompt_source and isinstance(clip_cfg, dict):
             clip_cfg["prompt_text_source"] = prompt_source
 
-    input_manifest_path, input_manifest_source = _resolve_filter_input_manifest(
+    input_manifest_paths, input_manifest_source = _resolve_filter_input_manifests(
         filter_cfg=filter_cfg,
         run_dir=run_dir,
+        config_path=config_path,
     )
     builder_cfg = dict(filter_cfg.get("manifest_builder", {}))
     builder_enabled = bool(builder_cfg.get("enabled", False))
     builder_force = bool(builder_cfg.get("force_rebuild", False))
+    primary_input_manifest_path = input_manifest_paths[0] if input_manifest_paths else None
+    missing_input_paths = [p for p in input_manifest_paths if not p.exists()]
 
-    if builder_enabled and (builder_force or input_manifest_path is None or not input_manifest_path.exists()):
-        rows = build_input_manifest_from_config(filter_cfg=filter_cfg, input_manifest_path=input_manifest_path)
+    if builder_enabled and (builder_force or (not input_manifest_paths) or missing_input_paths):
+        rows = build_input_manifest_from_config(filter_cfg=filter_cfg, input_manifest_path=primary_input_manifest_path)
         if not input_manifest_source:
             input_manifest_source = "filter.manifest_builder"
-    elif input_manifest_path is not None:
-        rows = read_jsonl(input_manifest_path)
+    elif input_manifest_paths:
+        rows = []
+        for path in input_manifest_paths:
+            rows.extend(read_jsonl(path))
     else:
         rows = build_stub_manifest(
             total_count=int(filter_cfg.get("stub_total_count", 24)),
             real_ratio=float(filter_cfg.get("stub_real_ratio", 0.5)),
         )
         input_manifest_source = "stub_manifest"
+    dedupe_by = str(filter_cfg.get("input_merge_dedupe_by", "sample_id")).strip()
+    dedupe_keep = str(filter_cfg.get("input_merge_dedupe_keep", "first")).strip().lower()
+    if input_manifest_paths and dedupe_by:
+        if dedupe_keep not in {"first", "last"}:
+            raise ValueError("filter.input_merge_dedupe_keep must be one of: first, last")
+        deduped: Dict[str, Dict[str, Any]] = {}
+        passthrough: List[Dict[str, Any]] = []
+        for row in rows:
+            key = str(row.get(dedupe_by, "")).strip()
+            if not key:
+                passthrough.append(row)
+                continue
+            if dedupe_keep == "last" or key not in deduped:
+                deduped[key] = row
+        rows = [*passthrough, *deduped.values()]
     rows = _normalize_generate_manifest_rows(rows)
     input_rows_count = len(rows)
     rows, anchor_real_injection = _inject_anchor_real_rows(
         rows=rows,
         filter_cfg=filter_cfg,
         config_path=config_path,
-        input_manifest_path=input_manifest_path,
+        input_manifest_paths=input_manifest_paths,
     )
 
     accept_threshold = float(filter_cfg.get("accept_threshold", 0.6))
@@ -795,7 +860,8 @@ def main() -> None:
         "stage": "filter",
         "mode": mode,
         "run_dir": str(run_dir),
-        "input_manifest_path": str(input_manifest_path) if input_manifest_path is not None else "",
+        "input_manifest_path": str(primary_input_manifest_path) if primary_input_manifest_path is not None else "",
+        "input_manifest_paths": [str(p) for p in input_manifest_paths],
         "input_manifest_source": input_manifest_source,
         "total": len(rows),
         "input_total": input_rows_count,
