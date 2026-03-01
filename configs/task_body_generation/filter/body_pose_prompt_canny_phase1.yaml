@@ -4,6 +4,18 @@ run:
 
 filter:
   mode: compose
+  pipeline:
+    phases:
+      - id: phase1_dual_signal
+        enabled: true
+        target_source: synthetic
+        prompt_accept_threshold: 0.66
+        prompt_uncertain_threshold: 0.52
+        pair_accept_threshold: 0.82
+        pair_uncertain_threshold: 0.72
+        missing_pair_policy: uncertain
+        hard_reject: false
+
   input_manifests: 
     - artifacts/runs/yk003/body_pose_generation/body_pose__prompt/generate/synth_manifest.jsonl
     - artifacts/runs/yk003/body_pose_generation/body_pose__prompt_canny/generate/synth_manifest.jsonl

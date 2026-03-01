@@ -6,7 +6,20 @@
 
 入口脚本：
 - `filter/run_filter.py`
-- 当前仅支持：`filter.mode=compose`（phase1 v1）
+- 当前仅支持：`filter.mode=compose` + `policy.decision=phase1_dual_signal`
+
+## 1.1 模块化实现（当前）
+
+- 入口调度：`filter/run_filter.py`
+- 输入与清单处理：`filter/pipeline_engine/io_ops.py`
+- phase 调度器与注册表：`filter/pipeline_engine/orchestrator.py`
+- phase1 dual-signal 算法：`filter/pipeline_engine/phase1_dual_signal.py`
+
+当前 `run_filter.py` 只负责：
+- 读取配置
+- 读取输入/补锚
+- 调用 phase pipeline
+- 写出 splits 与 report
 
 ## 2. Phase 输入输出关系
 
@@ -27,7 +40,21 @@
 
 - `test/test-filters/configs/filter_compose.yaml`
 
-## 4. Phase1（Dual Signal）
+## 4. Phase Pipeline（Dual Signal）
+
+通过配置驱动逐级 phase：
+
+```yaml
+filter:
+  pipeline:
+    phases:
+      - id: phase1_dual_signal
+        enabled: true
+```
+
+- phase 按顺序执行。
+- 每个 phase 都可有独立阈值配置。
+- 当前内置 `phase1_dual_signal`，后续 phase2/phase3 以同样接口扩展，不改入口脚本。
 
 1. 输入清单优先级
 - `filter.input_manifests`（显式多输入，按顺序合并）
@@ -55,7 +82,7 @@
 - `s_anchor`（image vs image）：
   - `sim(anchor_image, synthetic_image)`（仅 guided synthetic 使用；由 `semantic_pair` 提供）
 
-3. 决策策略（`policy.decision=phase1_dual_signal`）
+3. 决策策略（`phase1_dual_signal`）
 - guided synthetic：
   - accept: `s_prompt >= prompt_accept_threshold && s_anchor >= pair_accept_threshold`
   - 否则进入 uncertain（或 `hard_reject=true` 时按 uncertain 阈值 reject）
