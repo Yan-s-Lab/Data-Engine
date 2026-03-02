@@ -38,7 +38,7 @@ filter:
         - human 
         - person
         - human body
-      body_strucure:
+      body_structure:
         - human's muscale is visible
         - human's deltoid muscle is visible
         - human's elbow is visible
@@ -52,13 +52,19 @@ filter:
         - 不是人类
         - 缺乏人类特征
         - 完全失效
+    compare-texts-weights:
+      human: 0.4
+      body_structure: 0.6
+      negative: 1.0
+    compare-texts-group-reduce: max
+    compare-texts-negative-scale: 1.0
 
   phase1_semantic:
     enabled: true
     guided_w_anchor: 0.8
     guided_w_prompt: 0.2
     prompt_metric: score
-    prompt_field: effective_prompt_text
+    prompt_field: prompt_text
     guided_marker_fields:
       - guide_image_id
       - anchor_real_image_path

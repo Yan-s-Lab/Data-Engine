@@ -3,7 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from filter.filter_stages import build_image_embeddings, compute_paired_anchor_semantic_scores, compute_prompt_scores
+from filter.filter_stages import (
+    build_image_embeddings,
+    compute_compare_texts_prompt_scores,
+    compute_paired_anchor_semantic_scores,
+    compute_prompt_scores,
+)
 from .io_ops import is_real_guided_synth
 
 
@@ -24,6 +29,7 @@ def _phase1_runtime_config(filter_cfg: Dict[str, Any], filter_dir: Path) -> Dict
     clip_cfg = dict(filter_cfg.get("clip", {}))
     phase1_cfg = dict(filter_cfg.get("phase1_semantic", {}))
     model_id = str(clip_cfg.get("model_id", "openai/clip-vit-base-patch32"))
+    compare_cfg = _resolve_compare_texts_config(clip_cfg)
     return {
         "clip_cfg": clip_cfg,
         "phase1_cfg": phase1_cfg,
@@ -34,6 +40,58 @@ def _phase1_runtime_config(filter_cfg: Dict[str, Any], filter_dir: Path) -> Dict
         "keep_real_always": bool(filter_cfg.get("keep_real_always", True)),
         "prompt_score_mode": _resolve_prompt_score_mode(model_id, clip_cfg),
         "cache_path": Path(str(clip_cfg.get("embed_cache_path", filter_dir / "clip_embed_cache.json"))),
+        "compare_texts_cfg": compare_cfg,
+    }
+
+
+def _resolve_compare_texts_config(clip_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    raw = clip_cfg.get("compare-texts", clip_cfg.get("compare_texts", {}))
+    if not isinstance(raw, dict):
+        return {"enabled": False, "groups": {}, "weights": {}, "group_reduce": "max", "negative_scale": 1.0}
+
+    alias = {
+        "body_strucure": "body_structure",
+    }
+    groups: Dict[str, List[str]] = {}
+    for key, values in raw.items():
+        if not isinstance(values, list):
+            continue
+        canonical = alias.get(str(key).strip(), str(key).strip())
+        texts = [str(x).strip() for x in values if str(x).strip()]
+        if texts:
+            groups[canonical] = texts
+    if not groups:
+        return {"enabled": False, "groups": {}, "weights": {}, "group_reduce": "max", "negative_scale": 1.0}
+
+    weight_cfg = clip_cfg.get("compare-texts-weights", clip_cfg.get("compare_text_weights", {}))
+    raw_weights = weight_cfg if isinstance(weight_cfg, dict) else {}
+    weights: Dict[str, float] = {}
+    for key in groups.keys():
+        w = raw_weights.get(key)
+        if w is None:
+            # tolerate legacy typo key
+            if key == "body_structure":
+                w = raw_weights.get("body_strucure")
+        try:
+            wv = float(w) if w is not None else 1.0
+        except (TypeError, ValueError):
+            wv = 1.0
+        weights[key] = wv if wv > 0.0 else 1.0
+
+    group_reduce = str(clip_cfg.get("compare-texts-group-reduce", "max")).strip().lower() or "max"
+    if group_reduce not in {"max", "mean", "p75"}:
+        group_reduce = "max"
+    negative_scale = float(clip_cfg.get("compare-texts-negative-scale", 1.0))
+    if negative_scale < 0.0:
+        negative_scale = 0.0
+    negative_groups = [g for g in groups.keys() if g.lower().startswith("neg")]
+    return {
+        "enabled": True,
+        "groups": groups,
+        "weights": weights,
+        "group_reduce": group_reduce,
+        "negative_scale": negative_scale,
+        "negative_groups": negative_groups,
     }
 
 
@@ -94,6 +152,7 @@ def _build_phase1_report(
     guided_count: int,
     prompt_only_count: int,
     guided_anchor_hit_count: int,
+    compare_texts_state: Dict[str, Any],
 ) -> Dict[str, Any]:
     clip_cfg = runtime_cfg["clip_cfg"]
     return {
@@ -104,6 +163,7 @@ def _build_phase1_report(
         "prompt_text_present": bool(runtime_cfg["prompt_text"].strip()),
         "prompt_text_source": str(clip_cfg.get("prompt_text_source", "")),
         "prompt_score_mode": runtime_cfg["prompt_score_mode"],
+        "compare_texts": compare_texts_state,
         "phase1_semantic": {
             "enabled": True,
             "phase1_version": "dual_signal",
@@ -133,14 +193,27 @@ def compute_phase1_score_rows(
         cache_path=runtime_cfg["cache_path"],
     )
 
-    prompt_scores = compute_prompt_scores(
-        rows=rows,
-        image_embeddings=embeddings,
-        runtime=runtime,
-        prompt_text=runtime_cfg["prompt_text"],
-        prompt_score_mode=runtime_cfg["prompt_score_mode"],
-        prompt_field=runtime_cfg["prompt_field"],
-    )
+    compare_cfg = dict(runtime_cfg.get("compare_texts_cfg", {}))
+    compare_state: Dict[str, Any] = {"enabled": False, "reason": "compare_texts_disabled"}
+    if bool(compare_cfg.get("enabled", False)):
+        prompt_scores, compare_state = compute_compare_texts_prompt_scores(
+            rows=rows,
+            runtime=runtime,
+            compare_texts=dict(compare_cfg.get("groups", {})),
+            group_weights=dict(compare_cfg.get("weights", {})),
+            group_reduce=str(compare_cfg.get("group_reduce", "max")),
+            negative_groups=[str(x) for x in compare_cfg.get("negative_groups", [])],
+            negative_scale=float(compare_cfg.get("negative_scale", 1.0)),
+        )
+    else:
+        prompt_scores = compute_prompt_scores(
+            rows=rows,
+            image_embeddings=embeddings,
+            runtime=runtime,
+            prompt_text=runtime_cfg["prompt_text"],
+            prompt_score_mode=runtime_cfg["prompt_score_mode"],
+            prompt_field=runtime_cfg["prompt_field"],
+        )
     paired_scores, paired_state = compute_paired_anchor_semantic_scores(
         rows=rows,
         image_embeddings=embeddings,
@@ -179,6 +252,7 @@ def compute_phase1_score_rows(
         guided_count=guided_count,
         prompt_only_count=prompt_only_count,
         guided_anchor_hit_count=guided_anchor_hit_count,
+        compare_texts_state=compare_state,
     )
     return score_rows, report_extra
 

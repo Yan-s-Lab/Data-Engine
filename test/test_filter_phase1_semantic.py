@@ -4,7 +4,10 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
+from filter.filter_stages import aggregate_compare_texts_group_scores
+from filter.pipeline_engine.phase1_dual_signal import compute_phase1_score_rows
 from filter.run_filter import (
     _apply_dual_signal_selection,
     _inject_anchor_real_rows,
@@ -14,6 +17,83 @@ from filter.run_filter import (
 
 
 class FilterPhase1SemanticTest(unittest.TestCase):
+    def test_compare_texts_weighted_aggregation(self) -> None:
+        group_scores = {
+            "human": 0.8,
+            "body_structure": 0.5,
+            "negative": 0.2,
+        }
+        agg = aggregate_compare_texts_group_scores(
+            group_scores,
+            group_weights={
+                "human": 0.4,
+                "body_structure": 0.6,
+                "negative": 1.0,
+            },
+            negative_groups=["negative"],
+            negative_scale=1.0,
+        )
+        # s_pos = 0.4*0.8 + 0.6*0.5 = 0.62
+        # s_neg = 0.2
+        # s_prompt = (0.62 + (1-0.2)) / 2 = 0.71
+        self.assertAlmostEqual(agg["s_prompt_pos"], 0.62, places=6)
+        self.assertAlmostEqual(agg["s_prompt_neg"], 0.2, places=6)
+        self.assertAlmostEqual(agg["s_prompt"], 0.71, places=6)
+
+    def test_phase1_uses_compare_texts_when_configured(self) -> None:
+        rows = [
+            {"sample_id": "s1", "source": "synthetic", "image_path": "s1.png", "guide_type": "prompt"},
+        ]
+        filter_cfg = {
+            "clip": {
+                "model_id": "google/siglip2-so400m-patch16-naflex",
+                "compare-texts": {
+                    "human": ["human"],
+                    "body_strucure": ["visible deltoid"],
+                    "negative": ["not human"],
+                },
+            },
+            "phase1_semantic": {
+                "enabled": True,
+                "prompt_field": "prompt_text",
+                "anchor_sid_fields": ["guide_image_id"],
+            },
+            "keep_real_always": True,
+        }
+
+        class _Runtime:
+            device = "cpu"
+
+        with (
+            patch(
+                "filter.pipeline_engine.phase1_dual_signal.build_image_embeddings",
+                return_value=({}, _Runtime(), {"embed_cache_total": 1}),
+            ),
+            patch(
+                "filter.pipeline_engine.phase1_dual_signal.compute_compare_texts_prompt_scores",
+                return_value=({"s1": 0.77}, {"enabled": True, "groups": ["human", "body_structure", "negative"]}),
+            ) as mock_compare,
+            patch(
+                "filter.pipeline_engine.phase1_dual_signal.compute_prompt_scores",
+                return_value={"s1": 0.11},
+            ) as mock_prompt,
+            patch(
+                "filter.pipeline_engine.phase1_dual_signal.compute_paired_anchor_semantic_scores",
+                return_value=({"s1": {"s_semantic_pair": 0.0, "s_semantic_pair_hit": 0.0}}, {"enabled": True}),
+            ),
+        ):
+            score_rows, report = compute_phase1_score_rows(
+                rows=rows,
+                filter_dir=Path("."),
+                filter_cfg=filter_cfg,
+            )
+        self.assertEqual(len(score_rows), 1)
+        self.assertEqual(score_rows[0]["s_prompt"], 0.77)
+        self.assertTrue(report["compare_texts"]["enabled"])
+        self.assertEqual(report["compare_texts"]["groups"], ["human", "body_structure", "negative"])
+        mock_compare.assert_called_once()
+        mock_prompt.assert_not_called()
+
     def test_resolve_decision_policy_accepts_legacy_alias(self) -> None:
         self.assertEqual(
             _resolve_decision_policy({"policy": {"decision": "phase1_v1"}}),
