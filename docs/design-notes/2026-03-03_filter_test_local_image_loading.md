@@ -74,5 +74,5 @@ Orchestration → Components → Core
 - [x] Code changes implemented
 - [x] Tests added/updated
 - [x] Docs updated
-- [ ] Git commit message: `fix(filter): support local image loading in filter test script`
-- [ ] Pushed to remote
+- [x] Git commit message: `fix(filter): support local image loading in filter test script`
+- [x] Pushed to remote
