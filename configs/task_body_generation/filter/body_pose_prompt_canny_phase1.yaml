@@ -1,5 +1,5 @@
 run:
-  run_id: body_pose_filter
+  run_id: body_pose_filter1
   artifacts_root: artifacts/runs/yk003/body_pose
 
 filter:
@@ -35,23 +35,15 @@ filter:
     prompt_score_mode: siglip_sigmoid
     compare-texts:
       human: 
-        - human 
-        - person
+        - this is a photo of a human
+        - a person in the image
         - human body
       body_structure:
-        - human's muscale is visible
-        - human's deltoid muscle is visible
-        - human's elbow is visible
-        - elbow
-        - Normal facial structure
-        - neck
-        - nose
-        - ear
-        - hands
+        - a close-up of a human deltoid muscle
+        - visible human elbow joint
+        - a person with a stable and realistic body structure
       negative:
-        - 不是人类
-        - 缺乏人类特征
-        - 完全失效
+        - deformed body structure
     compare-texts-weights:
       human: 0.4
       body_structure: 0.6

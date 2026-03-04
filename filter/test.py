@@ -28,10 +28,10 @@ def load_model():
 model = load_model()
 processor = AutoProcessor.from_pretrained(ckpt)
 
-url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/pipeline-cat-chonk.jpeg"
+url = "/home/yukang/StudioSpace/Data-Engine/filter/yk003__body_pose__prompt__1_00001_.png"
 image = Image.open(requests.get(url, stream=True).raw) # type: ignore
 # candidate_labels = ["a Pallas cat", "a lion", "a Siberian tiger"]
-candidate_labels = ["a cat", "a plane", "a remote"]
+candidate_labels = ["this is a photo of a human", "a person in the image", "human body"]
 
 # follows the pipeline prompt template to get same results
 texts = [f'This is a photo of {label}.' for label in candidate_labels]
