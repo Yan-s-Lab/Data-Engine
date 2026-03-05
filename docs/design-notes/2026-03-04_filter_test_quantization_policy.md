@@ -72,5 +72,5 @@ Orchestration → Components → Core
 - [x] Code changes implemented
 - [x] Tests added/updated
 - [x] Docs updated
-- [ ] Git commit message: `fix(filter-test): default siglip2 auto mode to non-quantized`
-- [ ] Pushed to remote
+- [x] Git commit message: `fix(filter-test): default siglip2 auto mode to non-quantized`
+- [x] Pushed to remote
