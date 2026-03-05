@@ -11,12 +11,37 @@ from PIL import Image
 from transformers import AutoModel, AutoProcessor, BitsAndBytesConfig
 
 CKPT = "google/siglip2-so400m-patch16-naflex"
-DEFAULT_IMAGE = Path(__file__).with_name("yk003__body_pose__prompt__1_00001_.png")
+DEFAULT_IMAGE = Path(__file__).with_name("image.png")
 DEFAULT_LABELS = [
-    "this is a photo of a human",
-    "a person in the image",
-    "human body",
+    "a photo of a person",
+    "a close-up photo of the deltoid muscle",
+    "a photo of human",
+    "an image showing a human",
+    "a photo of a human shoulder",
+    "a green tree",
+    "a photo of a car"
 ]
+
+
+def preferred_dtype() -> torch.dtype:
+    return torch.float16 if torch.cuda.is_available() else torch.float32
+
+
+def resolve_quantization_mode(requested_mode: str, ckpt: str, has_cuda: bool) -> str:
+    mode = requested_mode.lower()
+    if mode not in {"auto", "off", "on"}:
+        raise ValueError(f"Unsupported quantization mode: {requested_mode}")
+
+    if mode == "off":
+        return "off"
+    if mode == "on":
+        return "on"
+
+    if not has_cuda:
+        return "off"
+    if "siglip2" in ckpt.lower():
+        return "off"
+    return "on"
 
 
 def _is_http_image_source(image_source: str) -> bool:
@@ -39,7 +64,20 @@ def load_image_source(image_source: str) -> Image.Image:
         return img.convert("RGB")
 
 
-def load_model(ckpt: str):
+def load_model_non_quantized(ckpt: str):
+    return AutoModel.from_pretrained(
+        ckpt,
+        device_map="auto",
+        dtype=preferred_dtype(),
+        attn_implementation="sdpa",
+    )
+
+
+def load_model(ckpt: str, quantization_mode: str):
+    if quantization_mode == "off":
+        print("[info] quantization=off; loading non-quantized model")
+        return load_model_non_quantized(ckpt)
+
     try:
         bnb_config = BitsAndBytesConfig(load_in_4bit=True)
         return AutoModel.from_pretrained(
@@ -50,26 +88,38 @@ def load_model(ckpt: str):
         )
     except Exception as exc:
         print(f"[warn] 4-bit load failed, fallback to non-quantized model: {exc}")
-        return AutoModel.from_pretrained(
-            ckpt,
-            device_map="auto",
-            dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-            attn_implementation="sdpa",
-        )
+        return load_model_non_quantized(ckpt)
 
 
-def run_inference(image_source: str, candidate_labels: list[str]) -> None:
-    model = load_model(CKPT)
+def _to_model_device(inputs, model):
+    target_device = next(model.parameters()).device
+    moved = inputs.to(target_device)
+    for key, value in moved.items():
+        if torch.is_floating_point(value):
+            moved[key] = value.to(dtype=preferred_dtype())
+    return moved
+
+
+def run_inference(image_source: str, candidate_labels: list[str], requested_quantization: str = "auto") -> None:
+    effective_mode = resolve_quantization_mode(requested_quantization, CKPT, torch.cuda.is_available())
+    if effective_mode != requested_quantization.lower():
+        print(f"[info] quantization={requested_quantization} resolved to {effective_mode} for checkpoint {CKPT}")
+
+    model = load_model(CKPT, effective_mode)
     processor = AutoProcessor.from_pretrained(CKPT)
     image = load_image_source(image_source)
+    
+    print(processor.image_processor.size)
 
     inputs = processor(
         text=candidate_labels,
         images=image,
         padding="max_length",
         max_length=64,
+        truncation=True,
         return_tensors="pt",
-    ).to(model.device)
+    )
+    inputs = _to_model_device(inputs, model)
 
     with torch.no_grad():
         try:
@@ -78,13 +128,8 @@ def run_inference(image_source: str, candidate_labels: list[str]) -> None:
             if "same dtype" not in str(exc):
                 raise
             print(f"[warn] quantized forward failed, retrying in non-quantized mode: {exc}")
-            model = AutoModel.from_pretrained(
-                CKPT,
-                device_map="auto",
-                dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                attn_implementation="sdpa",
-            )
-            inputs = inputs.to(model.device)
+            model = load_model_non_quantized(CKPT)
+            inputs = _to_model_device(inputs, model)
             outputs = model(**inputs)
 
     logits_per_image = outputs.logits_per_image
@@ -103,9 +148,14 @@ def main() -> None:
         default=str(DEFAULT_IMAGE),
         help="Image source path or HTTP/HTTPS URL.",
     )
+    parser.add_argument(
+        "--quantization",
+        default="auto",
+        choices=["auto", "off", "on"],
+        help="Quantization mode: auto resolves by environment/model; off forces non-quantized; on forces 4-bit attempt.",
+    )
     args = parser.parse_args()
-
-    run_inference(args.image, DEFAULT_LABELS)
+    run_inference(args.image, DEFAULT_LABELS, requested_quantization=args.quantization)
 
 
 if __name__ == "__main__":
