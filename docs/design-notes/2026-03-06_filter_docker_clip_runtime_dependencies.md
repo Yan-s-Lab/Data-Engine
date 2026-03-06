@@ -70,5 +70,5 @@ Confirm imports follow: Orchestration -> Components -> Core
 - [x] Code changes implemented
 - [x] Tests added/updated
 - [x] Docs updated
-- [ ] Git commit message:
-- [ ] Pushed to remote
+- [x] Git commit message: `fix(filter): include torch/transformers in pipeline runtime deps`
+- [x] Pushed to remote
