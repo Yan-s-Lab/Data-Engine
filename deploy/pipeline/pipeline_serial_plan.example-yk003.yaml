@@ -1,6 +1,20 @@
 serial_plan:
   # 串行版 v1：所有 stage / task 按顺序执行
   continue_on_error: false
+  # Optional: run ComfyUI health/memory guards after each task.
+  post_actions:
+    - type: comfyui.queue_empty_check
+      on: always
+      timeout_sec: 10
+      params:
+        base_url: http://127.0.0.1:8188
+    - type: comfyui.free_memory
+      on: always
+      timeout_sec: 15
+      params:
+        base_url: http://127.0.0.1:8188
+        unload_models: true
+        free_memory: true
   stages:
     # - name: dataloader
     #   tasks:

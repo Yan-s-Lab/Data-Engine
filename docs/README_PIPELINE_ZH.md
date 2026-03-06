@@ -74,6 +74,23 @@
 - 容器入口：`deploy/pipeline/docker-compose.pipeline.yml`
 - 串行计划：`deploy/pipeline/pipeline_serial_plan.example-yk003.yaml`
 
+串行计划支持 task 后置动作（可用于 ComfyUI 队列检查与显存释放）：
+
+```yaml
+serial_plan:
+  post_actions:
+    - type: comfyui.queue_empty_check
+      on: always
+      params:
+        base_url: http://127.0.0.1:8188
+    - type: comfyui.free_memory
+      on: always
+      params:
+        base_url: http://127.0.0.1:8188
+        unload_models: true
+        free_memory: true
+```
+
 `deploy/pipeline/.env` 变量优先级：
 `PIPELINE_SERIAL_PLAN` > `PIPELINE_CONFIG_LIST_FILE/PIPELINE_CONFIGS` > `PIPELINE_CONFIG`
 

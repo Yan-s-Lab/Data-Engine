@@ -8,8 +8,10 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from urllib import error as urlerror
+from urllib import request as urlrequest
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -23,6 +25,7 @@ class PlanTask:
     stage_name: str
     task_name: str
     config_path: str
+    post_actions: List[Dict[str, Any]]
 
 
 def _slug(text: str) -> str:
@@ -30,7 +33,57 @@ def _slug(text: str) -> str:
     return s.strip("._-") or "task"
 
 
-def _parse_tasks(stage_name: str, stage_obj: Dict[str, Any], stage_idx: int) -> List[PlanTask]:
+def _parse_post_actions(raw: Any, context: str) -> List[Dict[str, Any]]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"{context} must be a list")
+
+    parsed: List[Dict[str, Any]] = []
+    for action_idx, item in enumerate(raw):
+        if isinstance(item, str):
+            type_name = item.strip()
+            action_obj: Dict[str, Any] = {"type": type_name}
+        elif isinstance(item, Mapping):
+            action_obj = dict(item)
+            type_name = str(action_obj.get("type", "")).strip()
+        else:
+            raise ValueError(f"{context}[{action_idx}] must be a string or mapping")
+
+        if not type_name:
+            raise ValueError(f"{context}[{action_idx}].type is required")
+
+        on = str(action_obj.get("on", "always")).strip().lower()
+        if on not in {"always", "success", "failure"}:
+            raise ValueError(f"{context}[{action_idx}].on must be one of: always, success, failure")
+
+        timeout_sec = int(action_obj.get("timeout_sec", 10))
+        if timeout_sec <= 0:
+            raise ValueError(f"{context}[{action_idx}].timeout_sec must be > 0")
+
+        params_raw = action_obj.get("params", {})
+        if not isinstance(params_raw, Mapping):
+            raise ValueError(f"{context}[{action_idx}].params must be a mapping")
+
+        parsed.append(
+            {
+                "type": type_name,
+                "enabled": parse_bool(action_obj.get("enabled"), True),
+                "on": on,
+                "continue_on_error": parse_bool(action_obj.get("continue_on_error"), False),
+                "timeout_sec": timeout_sec,
+                "params": dict(params_raw),
+            }
+        )
+    return parsed
+
+
+def _parse_tasks(
+    stage_name: str,
+    stage_obj: Dict[str, Any],
+    stage_idx: int,
+    inherited_post_actions: List[Dict[str, Any]],
+) -> List[PlanTask]:
     tasks_obj = stage_obj.get("tasks")
     if not isinstance(tasks_obj, list) or not tasks_obj:
         raise ValueError(f"serial_plan.stages[{stage_idx}].tasks must be a non-empty list")
@@ -48,6 +101,7 @@ def _parse_tasks(stage_name: str, stage_obj: Dict[str, Any], stage_idx: int) -> 
                     stage_name=stage_name,
                     task_name=f"{stage_name}_{task_idx + 1}",
                     config_path=cfg,
+                    post_actions=list(inherited_post_actions),
                 )
             )
             continue
@@ -59,11 +113,16 @@ def _parse_tasks(stage_name: str, stage_obj: Dict[str, Any], stage_idx: int) -> 
                     f"serial_plan.stages[{stage_idx}].tasks[{task_idx}].config is required"
                 )
             task_name = str(item.get("name", f"{stage_name}_{task_idx + 1}")).strip()
+            task_post_actions = _parse_post_actions(
+                item.get("post_actions"),
+                f"serial_plan.stages[{stage_idx}].tasks[{task_idx}].post_actions",
+            )
             parsed.append(
                 PlanTask(
                     stage_name=stage_name,
                     task_name=task_name or f"{stage_name}_{task_idx + 1}",
                     config_path=cfg,
+                    post_actions=[*inherited_post_actions, *task_post_actions],
                 )
             )
             continue
@@ -84,13 +143,106 @@ def parse_plan(plan: Dict[str, Any]) -> tuple[List[PlanTask], bool]:
         raise ValueError("serial_plan.stages must be a non-empty list")
 
     continue_on_error = parse_bool(serial_plan.get("continue_on_error"), False)
+    global_post_actions = _parse_post_actions(serial_plan.get("post_actions"), "serial_plan.post_actions")
     queue: List[PlanTask] = []
     for idx, stage in enumerate(stages):
         if not isinstance(stage, dict):
             raise ValueError(f"serial_plan.stages[{idx}] must be a mapping")
         stage_name = str(stage.get("name", f"stage_{idx + 1}")).strip() or f"stage_{idx + 1}"
-        queue.extend(_parse_tasks(stage_name=stage_name, stage_obj=stage, stage_idx=idx))
+        stage_post_actions = _parse_post_actions(
+            stage.get("post_actions"),
+            f"serial_plan.stages[{idx}].post_actions",
+        )
+        queue.extend(
+            _parse_tasks(
+                stage_name=stage_name,
+                stage_obj=stage,
+                stage_idx=idx,
+                inherited_post_actions=[*global_post_actions, *stage_post_actions],
+            )
+        )
     return queue, continue_on_error
+
+
+def _should_run_post_action(action: Dict[str, Any], task_ok: bool) -> bool:
+    if not bool(action.get("enabled", True)):
+        return False
+    on = str(action.get("on", "always"))
+    if on == "always":
+        return True
+    if on == "success":
+        return task_ok
+    if on == "failure":
+        return not task_ok
+    return False
+
+
+def _http_request_json(
+    *,
+    method: str,
+    url: str,
+    timeout_sec: int,
+    payload: Dict[str, Any] | None = None,
+) -> Any:
+    body = None
+    headers = {}
+    if payload is not None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urlrequest.Request(url, data=body, method=method, headers=headers)
+    try:
+        with urlrequest.urlopen(req, timeout=timeout_sec) as resp:
+            raw = resp.read()
+    except urlerror.URLError as exc:
+        raise RuntimeError(f"http request failed: {method} {url}: {exc}") from exc
+    if not raw:
+        return {}
+    return json.loads(raw.decode("utf-8"))
+
+
+def _run_post_action(action: Dict[str, Any]) -> Dict[str, Any]:
+    action_type = str(action.get("type", "")).strip()
+    timeout_sec = int(action.get("timeout_sec", 10))
+    params = action.get("params", {})
+    if not isinstance(params, dict):
+        params = {}
+
+    base_url = str(params.get("base_url", "http://127.0.0.1:8188")).rstrip("/")
+    if not base_url:
+        raise ValueError(f"post_action `{action_type}` requires non-empty base_url")
+
+    if action_type == "comfyui.queue_empty_check":
+        queue = _http_request_json(
+            method="GET",
+            url=f"{base_url}/queue",
+            timeout_sec=timeout_sec,
+        )
+        if not isinstance(queue, dict):
+            raise RuntimeError("comfyui.queue_empty_check expected mapping response from /queue")
+        running = queue.get("queue_running", [])
+        pending = queue.get("queue_pending", [])
+        running_count = len(running) if isinstance(running, list) else 0
+        pending_count = len(pending) if isinstance(pending, list) else 0
+        if running_count > 0 or pending_count > 0:
+            raise RuntimeError(
+                f"comfyui queue not empty: running={running_count} pending={pending_count}"
+            )
+        return {"running_count": running_count, "pending_count": pending_count}
+
+    if action_type == "comfyui.free_memory":
+        payload = {
+            "unload_models": parse_bool(params.get("unload_models"), True),
+            "free_memory": parse_bool(params.get("free_memory"), True),
+        }
+        _http_request_json(
+            method="POST",
+            url=f"{base_url}/free",
+            timeout_sec=timeout_sec,
+            payload=payload,
+        )
+        return payload
+
+    raise ValueError(f"unsupported serial plan post_action.type: {action_type}")
 
 
 def run_task(
@@ -162,6 +314,45 @@ def main() -> None:
                 task_log=task_log,
             )
             ok = code == 0
+            post_action_reports: List[Dict[str, Any]] = []
+            for action_idx, action in enumerate(task.post_actions):
+                if not _should_run_post_action(action, task_ok=ok):
+                    continue
+                action_type = str(action.get("type", "")).strip()
+                try:
+                    details = _run_post_action(action)
+                    post_action_reports.append(
+                        {
+                            "index": action_idx + 1,
+                            "type": action_type,
+                            "status": "ok",
+                            "on": action.get("on", "always"),
+                            "details": details,
+                        }
+                    )
+                    main_log.write(
+                        f"[serial-plan] post-action ok stage={task.stage_name} task={task.task_name} "
+                        f"type={action_type}\n"
+                    )
+                except Exception as exc:
+                    post_action_reports.append(
+                        {
+                            "index": action_idx + 1,
+                            "type": action_type,
+                            "status": "failed",
+                            "on": action.get("on", "always"),
+                            "error": str(exc),
+                        }
+                    )
+                    main_log.write(
+                        f"[serial-plan] post-action failed stage={task.stage_name} task={task.task_name} "
+                        f"type={action_type} error={exc}\n"
+                    )
+                    if not parse_bool(action.get("continue_on_error"), False):
+                        if ok:
+                            code = 90
+                            ok = False
+                        break
             if not ok:
                 fail_count += 1
 
@@ -174,6 +365,7 @@ def main() -> None:
                     "log": str(task_log),
                     "return_code": code,
                     "status": "ok" if ok else "failed",
+                    "post_actions": post_action_reports,
                 }
             )
 
