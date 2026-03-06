@@ -21,17 +21,17 @@ serial_plan:
     #     - name: dataloader_norm
     #       config: configs/examples/dataloader_norm_test_generation_yk003_managed.yaml
 
-    - name: generation
-      tasks:
+    # - name: generation
+    #   tasks:
         # - name: prompt_only
         #   config: configs/examples/comfyui_generate_from_norm_yk003_prompt_only_managed.yaml
-        - name: prompt_canny
-          config: configs/examples/comfyui_generate_from_norm_yk003_prompt_canny_managed.yaml
+        # - name: prompt_canny
+        #   config: configs/examples/comfyui_generate_from_norm_yk003_prompt_canny_managed.yaml
 
-    # - name: filter
-    #   tasks:
-    #     - name: phase1
-    #       config: test/test-filters/configs/filter_compose.yaml
+    - name: filter
+      tasks:
+        - name: phase1
+          config: test/test-filters/configs/filter_compose.yaml
     #     - name: phase2
     #       config: test/test-filters/configs/filter_compose.yaml
     #     - name: phase3

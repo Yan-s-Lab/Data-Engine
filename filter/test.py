@@ -1,162 +1,106 @@
-from __future__ import annotations
-
-import argparse
-from io import BytesIO
-from pathlib import Path
-from urllib.parse import urlparse
-
-import requests
-import torch
 from PIL import Image
-from transformers import AutoModel, AutoProcessor, BitsAndBytesConfig
+from pathlib import Path
+import torch
+from transformers import AutoProcessor, AutoModel
 
-CKPT = "google/siglip2-so400m-patch16-naflex"
-DEFAULT_IMAGE = Path(__file__).with_name("image.png")
-DEFAULT_LABELS = [
-    "a photo of a person",
-    "a close-up photo of the deltoid muscle",
-    "a photo of human",
-    "an image showing a human",
-    "a photo of a human shoulder",
-    "a green tree",
-    "a photo of a car"
+ckpt = "google/siglip2-so400m-patch16-naflex"
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+model = AutoModel.from_pretrained(ckpt, dtype=torch.float32).to(device).eval()
+# processor = AutoProcessor.from_pretrained(ckpt)  # 先别加 use_fast，避免你版本不兼容/行为变化
+processor = AutoProcessor.from_pretrained(ckpt, use_fast=True)
+
+image_path = Path(__file__).resolve().parent / "yk003__body_pose_coco__prompt_canny__yk003__body_pose_coco__0275_00002_.png"
+print("image path:", image_path)
+image = Image.open(image_path).convert("RGB")
+print("PIL:", image.mode, image.size)
+
+positive_texts = [
+    "a photo of one or more people",
+    "a real-world photo containing people",
+    "a natural human pose in a real-life scene",
+    "one or more people with visible body poses",
+    "people with distinguishable body positions",
+    "a full-body or mostly visible human figure",
+    "one or more people with visible arms and legs",
+    "a photo suitable for human pose estimation",
+    "people in natural standing, walking, or moving poses",
+    "a realistic scene with one or more humans visible",
+    "a realistic photo of people in natural poses",
+    "a natural scene containing people"
 ]
+negative_texts = [
+    "a photo with no person",
+    "a landscape or object without people",
+    "a close-up photo of a face",
+    "a portrait photo focusing only on the face",
+    "a close-up of a hand or fingers",
+    "a close-up of legs or feet only",
+    "a cropped image showing only part of a person",
+    "a body part close-up without the full pose",
+    "a person heavily cut off by the image border",
+    "a severely occluded person",
+    "multiple people heavily overlapping and hard to distinguish",
+    "a distorted human body",
+    "a person with missing limbs",
+    "a person with extra limbs",
+    "an anatomically incorrect human body",
+    "a person with too many legs",
+    "A person has many legs",
+    "a cartoon style image",
+    "3d rendered character",
+]
+texts = positive_texts + negative_texts
 
+inputs = processor(text=texts, images=image, padding="max_length", return_tensors="pt")
+pv = inputs["pixel_values"]
+print("pixel_values dtype/min/max:", pv.dtype, pv.min().item(), pv.max().item())
 
-def preferred_dtype() -> torch.dtype:
-    return torch.float16 if torch.cuda.is_available() else torch.float32
+inputs = {k: v.to(device) for k, v in inputs.items()}
 
+with torch.no_grad():
+    logits = model(**inputs).logits_per_image.float().cpu()[0]
 
-def resolve_quantization_mode(requested_mode: str, ckpt: str, has_cuda: bool) -> str:
-    mode = requested_mode.lower()
-    if mode not in {"auto", "off", "on"}:
-        raise ValueError(f"Unsupported quantization mode: {requested_mode}")
+print("logits:", logits.numpy())
+probs = torch.sigmoid(logits)
 
-    if mode == "off":
-        return "off"
-    if mode == "on":
-        return "on"
+for index, label in enumerate(texts):
+    print(f"{probs[index].item():.1%} that image is '{label}'")
+    print(f"[{index}] {label}: logit={logits[index].item():.6f}, sigmoid={probs[index].item():.6f}")
 
-    if not has_cuda:
-        return "off"
-    if "siglip2" in ckpt.lower():
-        return "off"
-    return "on"
+pos_logits = logits[: len(positive_texts)]
+neg_logits = logits[len(positive_texts) :]
 
+# Pairwise fairness score: compare every positive prompt with every negative prompt.
+pairwise = pos_logits[:, None] - neg_logits[None, :]
+pairwise_flat = pairwise.flatten()
 
-def _is_http_image_source(image_source: str) -> bool:
-    parsed = urlparse(image_source)
-    return parsed.scheme in {"http", "https"}
+median_margin = pairwise_flat.median().item()
+mean_margin = pairwise_flat.mean().item()
 
+sorted_pairwise = torch.sort(pairwise_flat).values
+n = sorted_pairwise.numel()
+trim = int(n * 0.2)
+if trim > 0 and n > 2 * trim:
+    trimmed_mean_margin = sorted_pairwise[trim:-trim].mean().item()
+else:
+    trimmed_mean_margin = mean_margin
 
-def load_image_source(image_source: str) -> Image.Image:
-    if _is_http_image_source(image_source):
-        response = requests.get(image_source, timeout=30)
-        response.raise_for_status()
-        with Image.open(BytesIO(response.content)) as img:
-            return img.convert("RGB")
+q1 = torch.quantile(pairwise_flat, 0.25).item()
+q3 = torch.quantile(pairwise_flat, 0.75).item()
+iqr = q3 - q1
+std = pairwise_flat.std(unbiased=False).item()
 
-    image_path = Path(image_source).expanduser()
-    if not image_path.is_file():
-        raise FileNotFoundError(f"Local image not found: {image_path}")
+threshold = 0.0
+pred = median_margin > threshold
 
-    with Image.open(image_path) as img:
-        return img.convert("RGB")
-
-
-def load_model_non_quantized(ckpt: str):
-    return AutoModel.from_pretrained(
-        ckpt,
-        device_map="auto",
-        dtype=preferred_dtype(),
-        attn_implementation="sdpa",
-    )
-
-
-def load_model(ckpt: str, quantization_mode: str):
-    if quantization_mode == "off":
-        print("[info] quantization=off; loading non-quantized model")
-        return load_model_non_quantized(ckpt)
-
-    try:
-        bnb_config = BitsAndBytesConfig(load_in_4bit=True)
-        return AutoModel.from_pretrained(
-            ckpt,
-            quantization_config=bnb_config,
-            device_map="auto",
-            attn_implementation="sdpa",
-        )
-    except Exception as exc:
-        print(f"[warn] 4-bit load failed, fallback to non-quantized model: {exc}")
-        return load_model_non_quantized(ckpt)
-
-
-def _to_model_device(inputs, model):
-    target_device = next(model.parameters()).device
-    moved = inputs.to(target_device)
-    for key, value in moved.items():
-        if torch.is_floating_point(value):
-            moved[key] = value.to(dtype=preferred_dtype())
-    return moved
-
-
-def run_inference(image_source: str, candidate_labels: list[str], requested_quantization: str = "auto") -> None:
-    effective_mode = resolve_quantization_mode(requested_quantization, CKPT, torch.cuda.is_available())
-    if effective_mode != requested_quantization.lower():
-        print(f"[info] quantization={requested_quantization} resolved to {effective_mode} for checkpoint {CKPT}")
-
-    model = load_model(CKPT, effective_mode)
-    processor = AutoProcessor.from_pretrained(CKPT)
-    image = load_image_source(image_source)
-    
-    print(processor.image_processor.size)
-
-    inputs = processor(
-        text=candidate_labels,
-        images=image,
-        padding="max_length",
-        max_length=64,
-        truncation=True,
-        return_tensors="pt",
-    )
-    inputs = _to_model_device(inputs, model)
-
-    with torch.no_grad():
-        try:
-            outputs = model(**inputs)
-        except RuntimeError as exc:
-            if "same dtype" not in str(exc):
-                raise
-            print(f"[warn] quantized forward failed, retrying in non-quantized mode: {exc}")
-            model = load_model_non_quantized(CKPT)
-            inputs = _to_model_device(inputs, model)
-            outputs = model(**inputs)
-
-    logits_per_image = outputs.logits_per_image
-    probs = torch.sigmoid(logits_per_image)
-
-    image0_probs = probs[0]
-    for label, score in zip(candidate_labels, image0_probs):
-        print(f"{label:25s} -> {score.item():.4f}")
-    print(f"{image0_probs[0]:.1%} that image 0 is '{candidate_labels[0]}'")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="SigLIP2 local prompt score smoke script")
-    parser.add_argument(
-        "--image",
-        default=str(DEFAULT_IMAGE),
-        help="Image source path or HTTP/HTTPS URL.",
-    )
-    parser.add_argument(
-        "--quantization",
-        default="auto",
-        choices=["auto", "off", "on"],
-        help="Quantization mode: auto resolves by environment/model; off forces non-quantized; on forces 4-bit attempt.",
-    )
-    args = parser.parse_args()
-    run_inference(args.image, DEFAULT_LABELS, requested_quantization=args.quantization)
-
-
-if __name__ == "__main__":
-    main()
+print("\n=== Pairwise margins (pos_i - neg_j) ===")
+print(pairwise.numpy())
+print("pairwise_count:", n)
+print("median_margin:", f"{median_margin:.6f}")
+print("trimmed_mean_margin(20%):", f"{trimmed_mean_margin:.6f}")
+print("mean_margin:", f"{mean_margin:.6f}")
+print("IQR:", f"{iqr:.6f}")
+print("std:", f"{std:.6f}")
+print("threshold:", f"{threshold:.6f}")
+print("final:", pred)

@@ -1,5 +1,5 @@
 run:
-  run_id: body_pose_filter1
+  run_id: body_pose_filter2
   artifacts_root: artifacts/runs/yk003/body_pose
 
 filter:
@@ -34,16 +34,40 @@ filter:
     device: auto
     prompt_score_mode: siglip_sigmoid
     compare-texts:
-      human: 
-        - this is a photo of a human
-        - a person in the image
-        - human body
-      body_structure:
-        - a close-up of a human deltoid muscle
-        - visible human elbow joint
-        - a person with a stable and realistic body structure
-      negative:
-        - deformed body structure
+        positive:
+          - a photo of a person
+          - side view of a person
+          - side view of a person's upper arm
+          - side view of a person's upper arm with the deltoid region visible
+          - close-up photo of a person's shoulder showing the deltoid muscle
+          - exposed upper arm with the deltoid area clearly visible
+          - side profile of a person's upper arm and shoulder
+          - side profile view of a person's shoulder and upper arm
+          - human shoulder with the upper arm visible
+          - photo focusing on the shoulder and upper arm region
+          - upper arm visible in a side view
+          - side angle photograph of a person's shoulder and upper arm
+          - close-up photo of the shoulder and upper arm
+          - side view photo showing the shoulder and upper arm
+          - medical-style photo of a human shoulder and upper arm
+          - close-up image of the upper arm and shoulder region
+        negative:
+          - close-up photo of a human hand
+          - image focusing on hands or fingers
+          - image focusing on legs or lower body
+          - close-up photo of a human face
+          - portrait photo of a face
+          - close-up of the neck or head
+          - front view of a person
+          - frontal portrait of a person
+          - photo of a person's back
+          - person with arms outside the frame
+          - cropped image where the upper arm is not visible
+          - upper arm not visible in the image
+          - image where the shoulder is not visible
+          - person wearing long sleeves covering the upper arm
+          - shoulder and upper arm fully covered by clothes
+          - arm covered by fabric or clothing
     compare-texts-weights:
       human: 0.4
       body_structure: 0.6

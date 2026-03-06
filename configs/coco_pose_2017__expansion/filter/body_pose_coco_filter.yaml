@@ -1,0 +1,63 @@
+run:
+  run_id: body_pose_coco_filter
+  artifacts_root: artifacts/runs/yk003/body_pose_coco
+
+filter:
+  pipeline:
+    phases:
+      - id: phase1_siglip_logits_filter
+        enabled: true
+        # 可能需要的参数
+      # - id: phase2_roi_filter
+      #   enabled: false
+        # 可能需要的参数...
+      # - id: phase2_weak_model_detectest # 跟据任务去设置
+        # 可能需要的参数...
+  input_manifests:  # generation 的产出，可以多批次的任务
+    - artifacts/runs/yk003/body_pose_coco/body_pose_coco__prompt/generate/synth_manifest.jsonl
+    - artifacts/runs/yk003/body_pose_coco/body_pose_coco__prompt_canny/generate/synth_manifest.jsonl
+
+  # 可能上面用到了source image 作为 guided 生成，例如我们的body_pose_coco__prompt_canny任务就用到了，那么可以通过这个产出文件找到对应的 guided image 的真实地址
+  anchor_real_manifest: artifacts/runs/yk003/body_pose_coco/body_pose_coco_norm/dataloader/real_manifest.jsonl
+
+  clip:
+    model_id: google/siglip2-so400m-patch16-naflex # siglip2 is better model compare with “clip / siglip...”
+    device: auto
+    compared_prompt: # 具备一定的经验性成分在
+        positive:
+          - a photo contains human
+          - a photo contains person
+          - The person in the photo has a clear torso and normal physiological structure
+          - a photo of one or more people
+          - a real-world photo containing people
+          - a natural human pose in a real-life scene
+          - one or more people with visible body poses
+          - people with distinguishable body positions
+          - a full-body or mostly visible human figure
+          - one or more people with visible arms and legs
+          - a photo suitable for human pose estimation
+          - people in natural standing, walking, or moving poses
+          - a realistic scene with one or more humans visible
+          - a realistic photo of people in natural poses
+          - a natural scene containing people
+        negative:
+          - a photo with no person
+          - a landscape or object without people
+          - a close-up photo of a face
+          - a portrait photo focusing only on the face
+          - a close-up of a hand or fingers
+          - a close-up of legs or feet only
+          - a cropped image showing only part of a person
+          - a body part close-up without the full pose
+          - a person heavily cut off by the image border
+          - a severely occluded person
+          - multiple people heavily overlapping and hard to distinguish
+          - a distorted human body
+          - a person with missing limbs
+          - a person with extra limbs
+          - a cartoon style image
+          - 3d rendered character
+
+pipeline:
+  steps: [filter]
+  # resume_from_artifacts: true

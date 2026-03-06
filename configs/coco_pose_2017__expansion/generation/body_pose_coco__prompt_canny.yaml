@@ -1,0 +1,70 @@
+run:
+  # Output: 运行产物目录 = {artifacts_root}/{run_id}
+  run_id: body_pose_coco__prompt_canny
+  artifacts_root: artifacts/runs/yk003/body_pose_coco
+
+generate:
+  # Implement: 后端执行器
+  backend: comfyui
+
+  # Input: image-guided 必须提供 real anchors manifest
+  real_manifest: artifacts/runs/yk003/body_pose_coco/body_pose_coco_norm/dataloader/real_manifest.jsonl
+  synth_per_real: 2
+  # max_synth_samples: 6
+  seed_base: 1024
+
+  manifest:
+    # Output schema: image-guided 路由
+    guide_type: "image_guided"
+
+  comfyui:
+    # Input: ComfyUI 服务地址 + API graph
+    base_url: http://127.0.0.1:8188
+    workflow: configs/examples/comfyui/flux_canny_model_example.json
+
+    # Implement: 调度/容错
+    wait_mode: history
+    non_blocking: true
+    max_inflight: 2
+    on_timeout: retry
+    timeout_retries: 2
+    client_id: yk003
+    timeout_sec: 1800
+    poll_interval_sec: 1.0
+
+    # Output 路径：直接引用 ComfyUI 挂载输出目录（不做下载/复制）
+    output_dir: data/comfyui/output
+
+    # Implement -> API graph 注入（会覆盖 workflow 中对应 node.inputs）
+    # - seed_node_id + seed_input_key: 写随机种子
+    seed_node_id: "3"
+    seed_input_key: seed
+    prompt:
+      # - prompt.node_id + input_key: 写提示词文本
+      node_id: "23"
+      input_key: text
+      template_file: configs/coco_pose_2017__expansion/generation/prompt.txt
+      render_template: false
+    filename_prefix:
+      # - filename_prefix.node_id + input_key: 写 SaveImage 前缀
+      node_id: "9"
+      input_key: filename_prefix
+      template: "{client_id}__{run_id}__{anchor_image_stem}"
+
+    anchor_images:
+      # Implement -> API graph 注入（控制图像节点输入）
+      - name: canny_control
+        node_id: "17"
+        input_key: image
+        # 从 real_manifest 每行取图路径，再写入 node_id=17.inputs.image
+        path_field: image_path
+        upload: true
+        upload_overwrite: true
+        upload_subfolder: ""
+
+    anchor_filter:
+      max_long_edge: 1980
+
+pipeline:
+  steps: [generate]
+  resume_from_artifacts: true

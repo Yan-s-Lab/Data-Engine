@@ -5,8 +5,14 @@ services:
     restart: unless-stopped
     ports:
       - "${LABEL_STUDIO_PORT:-8080}:8080"
+    environment:
+      - LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
+      - LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/workspace
     volumes:
       - ../../data/label_studio:/label-studio/data
+      - ../../artifacts:/workspace/artifacts:ro
+      - ../../data/comfyui/output:/workspace/comfyui_output:ro
+
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
       interval: 30s
