@@ -14,3 +14,10 @@ Filter phase1 分文档：
 python filter/run_filter.py \
   --config test/test-filters/configs/filter_compose.yaml
 ```
+
+SigLIP2 标注集阈值评估（raw logits + margin + F1 threshold sweep）：
+```bash
+python filter/evaluate_siglip2_margin_threshold.py \
+  --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml \
+  --top-k 3
+```
