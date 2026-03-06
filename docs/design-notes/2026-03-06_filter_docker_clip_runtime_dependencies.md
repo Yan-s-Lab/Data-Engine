@@ -2,6 +2,7 @@
 - Add missing runtime dependencies for filter CLIP/SigLIP execution in managed Docker pipeline: `torch` and `transformers`.
 - This is needed because filter phase currently fails at runtime with `ModuleNotFoundError: No module named 'torch'` in container execution.
 - Resolve dependency solver conflict by constraining `huggingface-hub` to `<1.0` (compatible with `transformers` 4.x).
+- Use `transformers>=4.57.1` to support `siglip2` model type used by filter configs.
 
 ## 2) Scope
 ### In scope

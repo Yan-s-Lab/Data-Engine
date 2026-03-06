@@ -113,7 +113,7 @@ torch==2.3.0
     # via dataengine
 tqdm==4.67.1
     # via huggingface-hub
-transformers==4.48.0
+transformers==4.57.1
     # via dataengine
 typer-slim==0.20.0
     # via huggingface-hub
