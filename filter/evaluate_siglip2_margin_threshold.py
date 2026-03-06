@@ -47,10 +47,14 @@ def _load_labeled_rows(path: Path) -> List[Dict[str, Any]]:
     for idx, item in enumerate(data):
         if not isinstance(item, dict):
             raise ValueError(f"invalid row at index {idx}: must be object")
-        imagepath = str(item.get("imagepath", "")).strip()
+        imagepath = str(
+            item.get("imagepath", item.get("image_path", item.get("path", "")))
+        ).strip()
         label = str(item.get("label", "")).strip().lower()
         if not imagepath:
-            raise ValueError(f"invalid row at index {idx}: imagepath is required")
+            raise ValueError(
+                f"invalid row at index {idx}: one of imagepath/image_path/path is required"
+            )
         if label not in {"accept", "reject"}:
             raise ValueError(f"invalid row at index {idx}: label must be accept/reject")
         out.append({"imagepath": imagepath, "label": label})
