@@ -47,31 +47,14 @@ def _phase1_runtime_config(filter_cfg: Dict[str, Any], filter_dir: Path) -> Dict
 def _resolve_compare_texts_config(clip_cfg: Dict[str, Any]) -> Dict[str, Any]:
     raw = clip_cfg.get("compare-texts", clip_cfg.get("compare_texts", {}))
     if not isinstance(raw, dict):
-        return {"enabled": False, "groups": {}, "group_reduce": "median"}
-
-    alias = {
-        "body_strucure": "body_structure",
-    }
-    groups: Dict[str, List[str]] = {}
-    for key, values in raw.items():
-        if not isinstance(values, list):
-            continue
-        canonical = alias.get(str(key).strip(), str(key).strip())
-        texts = [str(x).strip() for x in values if str(x).strip()]
-        if texts:
-            groups[canonical] = texts
-    if not groups:
-        return {"enabled": False, "groups": {}, "group_reduce": "median"}
-
-    group_reduce = str(clip_cfg.get("compare-texts-group-reduce", "median")).strip().lower() or "median"
-    if group_reduce not in {"max", "mean", "median", "p75"}:
-        group_reduce = "median"
-    negative_groups = [g for g in groups.keys() if g.lower().startswith("neg")]
+        return {"enabled": False, "groups": {}}
+    positive = [str(x).strip() for x in raw.get("positive", []) if str(x).strip()] if isinstance(raw.get("positive", []), list) else []
+    negative = [str(x).strip() for x in raw.get("negative", []) if str(x).strip()] if isinstance(raw.get("negative", []), list) else []
+    if not positive or not negative:
+        return {"enabled": False, "groups": {}}
     return {
         "enabled": True,
-        "groups": groups,
-        "group_reduce": group_reduce,
-        "negative_groups": negative_groups,
+        "groups": {"positive": positive, "negative": negative},
     }
 
 
@@ -183,8 +166,6 @@ def compute_phase1_score_rows(
             rows=rows,
             runtime=runtime,
             compare_texts=dict(compare_cfg.get("groups", {})),
-            group_reduce=str(compare_cfg.get("group_reduce", "median")),
-            negative_groups=[str(x) for x in compare_cfg.get("negative_groups", [])],
         )
         compare_details_by_sid = dict(compare_state.pop("sample_details", {}))
     else:

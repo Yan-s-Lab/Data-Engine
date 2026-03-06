@@ -94,9 +94,7 @@ def image_text_logits(images: Any, texts: List[str], runtime: ClipRuntime) -> An
         text=texts,
         images=images,
         return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=_max_text_length(runtime),
+        padding="max_length",
     )
     inputs = {k: v.to(runtime.device) for k, v in inputs.items()}
     with runtime.torch_mod.no_grad():

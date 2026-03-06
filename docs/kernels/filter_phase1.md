@@ -81,10 +81,11 @@ filter:
 - `s_prompt`（text vs image）：
   - SigLIP2 路径不再把 `sigmoid` 当作绝对概率做决策。
   - 若配置了 `filter.clip.compare-texts`，使用正负文本对比：
+    - 仅支持两个字段：`compare-texts.positive` 与 `compare-texts.negative`
     - 先拿到每个 prompt 的直接 `logit/sigmoid`（用于日志）
     - 对正负 prompt 做全组合 margin：`margin = logit_pos - logit_neg`
     - `s_prompt` 使用 pairwise win-rate（margin>0 记 1，=0 记 0.5，<0 记 0），范围 `[0,1]`
-    - `compare-texts-group-reduce` 用于 `s_prompt_pos/s_prompt_neg/s_prompt_margin` 的统计（`max|mean|median|p75`，默认 `median`）
+    - `s_prompt_pos/s_prompt_neg/s_prompt_margin` 使用中位数统计
   - 旧的 compare-texts 加权融合（`compare-texts-weights` / `compare-texts-negative-scale`）已移除
 - `s_anchor`（image vs image）：
   - `sim(anchor_image, synthetic_image)`（仅 guided synthetic 使用；由 `semantic_pair` 提供）

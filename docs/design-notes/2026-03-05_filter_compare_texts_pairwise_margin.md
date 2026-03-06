@@ -40,9 +40,9 @@ Error handling:
 - Missing images/text groups continue to return safe defaults (`0.0`) and state diagnostics.
 
 ### Backward compatibility
-- Existing compare-texts config files remain valid.
-- `compare-texts-group-reduce` semantics now apply to pairwise margin reduction (not sigmoid group-prob reduction).
-- No migration required for key names; threshold retuning may be needed.
+- No compatibility layer is preserved for legacy compare-texts grouping/weighting.
+- New contract requires `compare-texts.positive` and `compare-texts.negative` only.
+- Threshold retuning may still be needed.
 
 ## 5) Data Contracts (Explicit Schemas)
 ### Step Inputs
@@ -58,16 +58,11 @@ Error handling:
 ## 6) Config Contract
 - Used keys:
   - `filter.clip.compare-texts`
-  - `filter.clip.compare-texts-weights`
-  - `filter.clip.compare-texts-group-reduce`
-  - `filter.clip.compare-texts-negative-scale`
   - `filter.clip.prompt_score_mode`
 - Defaults:
-  - `compare-texts-group-reduce: max` (kept for backward compatibility, interpreted in pairwise-margin context)
-  - `compare-texts-negative-scale: 1.0`
   - SigLIP default prompt mode resolved to margin-based mode.
 - Validation:
-  - compare-texts must contain at least one positive and one negative group to use pairwise mode.
+  - compare-texts must contain non-empty `positive` and `negative` lists.
 
 Example snippet:
 ```yaml
@@ -77,7 +72,6 @@ filter:
     compare-texts:
       positive: [...]
       negative: [...]
-    compare-texts-group-reduce: max
 ```
 
 ## 7) Registry / Dispatch Plan (If applicable)

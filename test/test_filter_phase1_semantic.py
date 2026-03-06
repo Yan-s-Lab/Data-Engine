@@ -21,7 +21,6 @@ class FilterPhase1SemanticTest(unittest.TestCase):
         agg = aggregate_compare_texts_group_scores(
             positive_logits=[0.8, 0.5],
             negative_logits=[0.2],
-            reduce_mode="median",
         )
         # pairwise margins: [0.6, 0.3] -> median 0.45, win_rate 1.0
         self.assertAlmostEqual(agg["s_prompt_pos"], 0.65, places=6)
@@ -38,8 +37,7 @@ class FilterPhase1SemanticTest(unittest.TestCase):
             "clip": {
                 "model_id": "google/siglip2-so400m-patch16-naflex",
                 "compare-texts": {
-                    "human": ["human"],
-                    "body_strucure": ["visible deltoid"],
+                    "positive": ["human", "visible deltoid"],
                     "negative": ["not human"],
                 },
             },
@@ -66,7 +64,7 @@ class FilterPhase1SemanticTest(unittest.TestCase):
                     {
                         "enabled": True,
                         "algorithm": "pairwise_logit_margin_win_rate",
-                        "groups": ["human", "body_structure", "negative"],
+                        "groups": ["positive", "negative"],
                         "sample_details": {"s1": {"algorithm": "pairwise_logit_margin_win_rate"}},
                     },
                 ),
@@ -90,7 +88,7 @@ class FilterPhase1SemanticTest(unittest.TestCase):
         self.assertEqual(score_rows[0]["prompt_compare_log"]["algorithm"], "pairwise_logit_margin_win_rate")
         self.assertTrue(report["compare_texts"]["enabled"])
         self.assertEqual(report["compare_texts"]["algorithm"], "pairwise_logit_margin_win_rate")
-        self.assertEqual(report["compare_texts"]["groups"], ["human", "body_structure", "negative"])
+        self.assertEqual(report["compare_texts"]["groups"], ["positive", "negative"])
         mock_compare.assert_called_once()
         mock_prompt.assert_not_called()
 
