@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import json
 from pathlib import Path
 import shutil
@@ -18,6 +19,62 @@ if str(ROOT) not in sys.path:
 
 from common.config_io import load_config, parse_bool, resolve_run_dir
 from common.manifest_io import write_json, write_jsonl
+
+
+def _load_coco_annotation_index(label_file: Path) -> Dict[str, Any]:
+    data = json.loads(label_file.read_text(encoding="utf-8"))
+    images = data.get("images")
+    annotations = data.get("annotations")
+    if not isinstance(images, list) or not isinstance(annotations, list):
+        raise ValueError(f"invalid COCO annotation file (missing images/annotations list): {label_file}")
+
+    image_ids_by_file_name: Dict[str, List[int]] = defaultdict(list)
+    image_ids_by_stem: Dict[str, List[int]] = defaultdict(list)
+    for image in images:
+        if not isinstance(image, dict):
+            continue
+        image_id = image.get("id")
+        file_name_raw = image.get("file_name")
+        if not isinstance(image_id, int) or not isinstance(file_name_raw, str) or not file_name_raw.strip():
+            continue
+        file_name = file_name_raw.strip()
+        image_ids_by_file_name[file_name].append(image_id)
+        image_ids_by_file_name[Path(file_name).name].append(image_id)
+        image_ids_by_stem[Path(file_name).stem].append(image_id)
+
+    ann_count_by_image_id: Dict[int, int] = defaultdict(int)
+    for ann in annotations:
+        if not isinstance(ann, dict):
+            continue
+        image_id = ann.get("image_id")
+        if isinstance(image_id, int):
+            ann_count_by_image_id[image_id] += 1
+
+    return {
+        "image_ids_by_file_name": image_ids_by_file_name,
+        "image_ids_by_stem": image_ids_by_stem,
+        "ann_count_by_image_id": ann_count_by_image_id,
+    }
+
+
+def _resolve_coco_label_for_image(image_path: Path, index: Dict[str, Any]) -> Dict[str, Any] | None:
+    image_ids_by_file_name = index["image_ids_by_file_name"]
+    image_ids_by_stem = index["image_ids_by_stem"]
+    ann_count_by_image_id = index["ann_count_by_image_id"]
+
+    candidates = image_ids_by_file_name.get(image_path.name, [])
+    if not candidates:
+        candidates = image_ids_by_stem.get(image_path.stem, [])
+
+    unique_image_ids = sorted(set(candidates))
+    if len(unique_image_ids) != 1:
+        return None
+
+    image_id = unique_image_ids[0]
+    ann_count = int(ann_count_by_image_id.get(image_id, 0))
+    if ann_count <= 0:
+        return None
+    return {"image_id": image_id, "annotation_count": ann_count}
 
 
 def collect_images(real_dir: Path, patterns: List[str], max_samples: int) -> List[Path]:
@@ -162,20 +219,41 @@ def main() -> None:
     if not files:
         raise RuntimeError(f"no images found under {image_dir} with patterns={patterns}")
 
-    label_dir_raw = loader_cfg.get("label_dir")
-    if label_dir_raw:
-        label_dir = Path(str(label_dir_raw))
-    else:
-        candidate = real_dir / "labels"
-        label_dir = candidate if candidate.exists() else None
+    label_format = str(loader_cfg.get("label_format", "per_file")).strip().lower()
+    if label_format not in {"per_file", "coco"}:
+        raise ValueError(
+            f"unsupported dataloader.label_format `{label_format}`: expected `per_file` or `coco`"
+        )
 
-    if label_dir is not None and not label_dir.exists():
-        raise FileNotFoundError(f"label_dir not found: {label_dir}")
+    label_dir_raw = loader_cfg.get("label_dir")
+    label_dir: Path | None = None
+    label_file: Path | None = None
+    coco_index: Dict[str, Any] | None = None
+    if label_format == "coco":
+        label_file_raw = loader_cfg.get("label_file") or label_dir_raw
+        if label_file_raw:
+            label_file = Path(str(label_file_raw))
+        else:
+            candidate = real_dir / "annotations.json"
+            label_file = candidate if candidate.exists() else None
+        if label_file is not None and not label_file.exists():
+            raise FileNotFoundError(f"label_file not found: {label_file}")
+        if label_file is not None:
+            coco_index = _load_coco_annotation_index(label_file)
+    else:
+        if label_dir_raw:
+            label_dir = Path(str(label_dir_raw))
+        else:
+            candidate = real_dir / "labels"
+            label_dir = candidate if candidate.exists() else None
+        if label_dir is not None and not label_dir.exists():
+            raise FileNotFoundError(f"label_dir not found: {label_dir}")
 
     label_ext = str(loader_cfg.get("label_ext", ".txt"))
     if not label_ext.startswith("."):
         label_ext = f".{label_ext}"
-    require_labels = parse_bool(loader_cfg.get("require_labels"), default=label_dir is not None)
+    default_require_labels = label_file is not None if label_format == "coco" else label_dir is not None
+    require_labels = parse_bool(loader_cfg.get("require_labels"), default=default_require_labels)
 
     naming_cfg = loader_cfg.get("naming", {})
     canonicalize_names = parse_bool(naming_cfg.get("canonicalize_names"), default=False)
@@ -202,8 +280,9 @@ def main() -> None:
         "id_start": id_start,
     }
 
+    has_labels = (label_file is not None) if label_format == "coco" else (label_dir is not None)
     normalized_root, normalized_image_dir, normalized_label_dir = resolve_output_dirs(
-        loader_cfg, run_dir, has_labels=(label_dir is not None), template_ctx=base_template_ctx
+        loader_cfg, run_dir, has_labels=has_labels and label_format == "per_file", template_ctx=base_template_ctx
     )
     if normalize_outputs:
         normalized_image_dir.mkdir(parents=True, exist_ok=True)
@@ -220,15 +299,24 @@ def main() -> None:
     for path in files:
         sample_id = path.stem
         label_src: Path | None = None
+        coco_label: Dict[str, Any] | None = None
 
-        if label_dir is not None:
-            candidate = label_dir / f"{sample_id}{label_ext}"
-            if candidate.exists():
-                label_src = candidate
-            else:
+        if label_format == "coco":
+            if label_file is not None and coco_index is not None:
+                coco_label = _resolve_coco_label_for_image(path, coco_index)
+            if coco_label is None and label_file is not None:
                 samples_missing_label.append(sample_id)
                 if require_labels:
                     continue
+        else:
+            if label_dir is not None:
+                candidate = label_dir / f"{sample_id}{label_ext}"
+                if candidate.exists():
+                    label_src = candidate
+                else:
+                    samples_missing_label.append(sample_id)
+                    if require_labels:
+                        continue
 
         width, height = image_size(path)
         widths.append(width)
@@ -243,6 +331,11 @@ def main() -> None:
         }
         if label_src is not None:
             row["label_path"] = str(label_src)
+        elif coco_label is not None and label_file is not None:
+            row["label_path"] = str(label_file)
+            row["label_format"] = "coco"
+            row["coco_image_id"] = coco_label["image_id"]
+            row["coco_annotation_count"] = coco_label["annotation_count"]
 
         if normalize_outputs:
             seq_id = id_start + normalized_counter
@@ -318,7 +411,9 @@ def main() -> None:
         "image_dir": str(image_dir),
         "real_zip": str(real_zip) if real_zip else None,
         "total_real_samples": len(rows),
+        "label_format": label_format,
         "label_dir": str(label_dir) if label_dir is not None else None,
+        "label_file": str(label_file) if label_file is not None else None,
         "require_labels": require_labels,
         "canonicalize_names": canonicalize_names,
         "services_id": services_id,

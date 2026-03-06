@@ -11,7 +11,8 @@
 
 - 输入：
   - `dataloader.image_dir` 下图片
-  - 可选 `dataloader.label_dir` 下标注
+  - 可选 `dataloader.label_dir` 下逐文件标注（`label_format: per_file`）
+  - 可选 `dataloader.label_file` 单文件 COCO 标注（`label_format: coco`）
 - 输出：
   - `<run_dir>/dataloader/real_manifest.jsonl`
   - `<run_dir>/dataloader/anchor_stats.json`
@@ -40,6 +41,7 @@
 3. 标签约束逻辑
 - `require_labels=true` 且缺 label 的样本会被跳过。
 - 最终若全部跳过会报错退出。
+- `label_format=coco` 时，label 来自单个 COCO JSON；`label_path` 会指向该 JSON，并在 manifest 追加 `coco_image_id`、`coco_annotation_count`。
 
 ## 5. 运行命令
 
@@ -54,7 +56,8 @@ python ingest/run_dataloader.py \
 - 检查 `image_dir` 与 `patterns`。
 
 2. `label_dir not found` 或大量缺 label
-- 检查 `label_dir`、`label_ext` 与 `require_labels`。
+- `label_format=per_file`：检查 `label_dir`、`label_ext` 与 `require_labels`。
+- `label_format=coco`：检查 `label_file` 与图像文件名是否能匹配到 COCO `images.file_name`。
 
 3. `duplicate output stem`
 - 检查 `filename_template` 是否把多个样本映射成同名。
