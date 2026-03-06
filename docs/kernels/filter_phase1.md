@@ -79,13 +79,13 @@ filter:
 
 2. 两个原始分数（仅保留）
 - `s_prompt`（text vs image）：
-  - SigLIP2 路径固定为 `logits_per_image -> sigmoid`，范围 `[0,1]`
-  - 若配置了 `filter.clip.compare-texts`，则改为多组文本比较：
-    - 每组文本先做组内聚合（`compare-texts-group-reduce`: `max|mean|p75`，默认 `max`）
-    - 按权重计算 `s_pos`（非负向组）和 `s_neg`（负向组，组名以 `neg` 开头）
-    - 最终 `s_prompt = (s_pos + negative_scale * (1 - s_neg)) / (1 + negative_scale)`
-      - `negative_scale = filter.clip.compare-texts-negative-scale`（默认 `1.0`）
-      - 组权重来自 `filter.clip.compare-texts-weights`（默认每组 `1.0`）
+  - SigLIP2 路径不再把 `sigmoid` 当作绝对概率做决策。
+  - 若配置了 `filter.clip.compare-texts`，使用正负文本对比：
+    - 先拿到每个 prompt 的直接 `logit/sigmoid`（用于日志）
+    - 对正负 prompt 做全组合 margin：`margin = logit_pos - logit_neg`
+    - `s_prompt` 使用 pairwise win-rate（margin>0 记 1，=0 记 0.5，<0 记 0），范围 `[0,1]`
+    - `compare-texts-group-reduce` 用于 `s_prompt_pos/s_prompt_neg/s_prompt_margin` 的统计（`max|mean|median|p75`，默认 `median`）
+  - 旧的 compare-texts 加权融合（`compare-texts-weights` / `compare-texts-negative-scale`）已移除
 - `s_anchor`（image vs image）：
   - `sim(anchor_image, synthetic_image)`（仅 guided synthetic 使用；由 `semantic_pair` 提供）
 

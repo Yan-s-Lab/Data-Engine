@@ -21,7 +21,7 @@ def _clamp01(value: float) -> float:
 
 def _resolve_prompt_score_mode(model_id: str, clip_cfg: Dict[str, Any]) -> str:
     if "siglip" in model_id.strip().lower():
-        return "siglip_sigmoid"
+        return "siglip_pairwise_margin"
     return str(clip_cfg.get("prompt_score_mode", "cosine"))
 
 
@@ -47,7 +47,7 @@ def _phase1_runtime_config(filter_cfg: Dict[str, Any], filter_dir: Path) -> Dict
 def _resolve_compare_texts_config(clip_cfg: Dict[str, Any]) -> Dict[str, Any]:
     raw = clip_cfg.get("compare-texts", clip_cfg.get("compare_texts", {}))
     if not isinstance(raw, dict):
-        return {"enabled": False, "groups": {}, "weights": {}, "group_reduce": "max", "negative_scale": 1.0}
+        return {"enabled": False, "groups": {}, "group_reduce": "median"}
 
     alias = {
         "body_strucure": "body_structure",
@@ -61,36 +61,16 @@ def _resolve_compare_texts_config(clip_cfg: Dict[str, Any]) -> Dict[str, Any]:
         if texts:
             groups[canonical] = texts
     if not groups:
-        return {"enabled": False, "groups": {}, "weights": {}, "group_reduce": "max", "negative_scale": 1.0}
+        return {"enabled": False, "groups": {}, "group_reduce": "median"}
 
-    weight_cfg = clip_cfg.get("compare-texts-weights", clip_cfg.get("compare_text_weights", {}))
-    raw_weights = weight_cfg if isinstance(weight_cfg, dict) else {}
-    weights: Dict[str, float] = {}
-    for key in groups.keys():
-        w = raw_weights.get(key)
-        if w is None:
-            # tolerate legacy typo key
-            if key == "body_structure":
-                w = raw_weights.get("body_strucure")
-        try:
-            wv = float(w) if w is not None else 1.0
-        except (TypeError, ValueError):
-            wv = 1.0
-        weights[key] = wv if wv > 0.0 else 1.0
-
-    group_reduce = str(clip_cfg.get("compare-texts-group-reduce", "max")).strip().lower() or "max"
-    if group_reduce not in {"max", "mean", "p75"}:
-        group_reduce = "max"
-    negative_scale = float(clip_cfg.get("compare-texts-negative-scale", 1.0))
-    if negative_scale < 0.0:
-        negative_scale = 0.0
+    group_reduce = str(clip_cfg.get("compare-texts-group-reduce", "median")).strip().lower() or "median"
+    if group_reduce not in {"max", "mean", "median", "p75"}:
+        group_reduce = "median"
     negative_groups = [g for g in groups.keys() if g.lower().startswith("neg")]
     return {
         "enabled": True,
         "groups": groups,
-        "weights": weights,
         "group_reduce": group_reduce,
-        "negative_scale": negative_scale,
         "negative_groups": negative_groups,
     }
 
@@ -104,6 +84,7 @@ def _build_score_row(
     keep_real_always: bool,
     model_id: str,
     clip_device: str,
+    compare_details: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], str, bool]:
     sid = str(row.get("sample_id", ""))
     source = str(row.get("source", ""))
@@ -139,6 +120,7 @@ def _build_score_row(
         "decision_basis": decision_basis,
         "clip_model_id": model_id,
         "clip_device": clip_device,
+        "prompt_compare_log": compare_details,
     }
     return score_row, route, s_anchor_hit > 0.0
 
@@ -195,16 +177,16 @@ def compute_phase1_score_rows(
 
     compare_cfg = dict(runtime_cfg.get("compare_texts_cfg", {}))
     compare_state: Dict[str, Any] = {"enabled": False, "reason": "compare_texts_disabled"}
+    compare_details_by_sid: Dict[str, Dict[str, Any]] = {}
     if bool(compare_cfg.get("enabled", False)):
         prompt_scores, compare_state = compute_compare_texts_prompt_scores(
             rows=rows,
             runtime=runtime,
             compare_texts=dict(compare_cfg.get("groups", {})),
-            group_weights=dict(compare_cfg.get("weights", {})),
-            group_reduce=str(compare_cfg.get("group_reduce", "max")),
+            group_reduce=str(compare_cfg.get("group_reduce", "median")),
             negative_groups=[str(x) for x in compare_cfg.get("negative_groups", [])],
-            negative_scale=float(compare_cfg.get("negative_scale", 1.0)),
         )
+        compare_details_by_sid = dict(compare_state.pop("sample_details", {}))
     else:
         prompt_scores = compute_prompt_scores(
             rows=rows,
@@ -234,6 +216,7 @@ def compute_phase1_score_rows(
             keep_real_always=runtime_cfg["keep_real_always"],
             model_id=runtime_cfg["model_id"],
             clip_device=runtime.device,
+            compare_details=dict(compare_details_by_sid.get(str(row.get("sample_id", "")), {})),
         )
         source = str(score_row.get("source", ""))
         if route == "guided":

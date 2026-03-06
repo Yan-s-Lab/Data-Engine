@@ -17,28 +17,18 @@ from filter.run_filter import (
 
 
 class FilterPhase1SemanticTest(unittest.TestCase):
-    def test_compare_texts_weighted_aggregation(self) -> None:
-        group_scores = {
-            "human": 0.8,
-            "body_structure": 0.5,
-            "negative": 0.2,
-        }
+    def test_compare_texts_pairwise_margin_aggregation(self) -> None:
         agg = aggregate_compare_texts_group_scores(
-            group_scores,
-            group_weights={
-                "human": 0.4,
-                "body_structure": 0.6,
-                "negative": 1.0,
-            },
-            negative_groups=["negative"],
-            negative_scale=1.0,
+            positive_logits=[0.8, 0.5],
+            negative_logits=[0.2],
+            reduce_mode="median",
         )
-        # s_pos = 0.4*0.8 + 0.6*0.5 = 0.62
-        # s_neg = 0.2
-        # s_prompt = (0.62 + (1-0.2)) / 2 = 0.71
-        self.assertAlmostEqual(agg["s_prompt_pos"], 0.62, places=6)
+        # pairwise margins: [0.6, 0.3] -> median 0.45, win_rate 1.0
+        self.assertAlmostEqual(agg["s_prompt_pos"], 0.65, places=6)
         self.assertAlmostEqual(agg["s_prompt_neg"], 0.2, places=6)
-        self.assertAlmostEqual(agg["s_prompt"], 0.71, places=6)
+        self.assertAlmostEqual(agg["s_prompt_margin"], 0.45, places=6)
+        self.assertAlmostEqual(agg["s_prompt_win_rate"], 1.0, places=6)
+        self.assertAlmostEqual(agg["s_prompt"], 1.0, places=6)
 
     def test_phase1_uses_compare_texts_when_configured(self) -> None:
         rows = [
@@ -71,7 +61,15 @@ class FilterPhase1SemanticTest(unittest.TestCase):
             ),
             patch(
                 "filter.pipeline_engine.phase1_dual_signal.compute_compare_texts_prompt_scores",
-                return_value=({"s1": 0.77}, {"enabled": True, "groups": ["human", "body_structure", "negative"]}),
+                return_value=(
+                    {"s1": 0.77},
+                    {
+                        "enabled": True,
+                        "algorithm": "pairwise_logit_margin_win_rate",
+                        "groups": ["human", "body_structure", "negative"],
+                        "sample_details": {"s1": {"algorithm": "pairwise_logit_margin_win_rate"}},
+                    },
+                ),
             ) as mock_compare,
             patch(
                 "filter.pipeline_engine.phase1_dual_signal.compute_prompt_scores",
@@ -89,7 +87,9 @@ class FilterPhase1SemanticTest(unittest.TestCase):
             )
         self.assertEqual(len(score_rows), 1)
         self.assertEqual(score_rows[0]["s_prompt"], 0.77)
+        self.assertEqual(score_rows[0]["prompt_compare_log"]["algorithm"], "pairwise_logit_margin_win_rate")
         self.assertTrue(report["compare_texts"]["enabled"])
+        self.assertEqual(report["compare_texts"]["algorithm"], "pairwise_logit_margin_win_rate")
         self.assertEqual(report["compare_texts"]["groups"], ["human", "body_structure", "negative"])
         mock_compare.assert_called_once()
         mock_prompt.assert_not_called()

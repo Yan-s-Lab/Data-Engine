@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from .clip_embed_cache import ClipRuntime, cosine_similarity, image_text_logits, text_embedding
 
@@ -16,6 +16,12 @@ def _reduce_group_scores(values: List[float], reduce_mode: str) -> float:
     mode = str(reduce_mode).strip().lower()
     if mode == "mean":
         return float(sum(values) / len(values))
+    if mode == "median":
+        arr = sorted(float(v) for v in values)
+        mid = len(arr) // 2
+        if len(arr) % 2 == 1:
+            return arr[mid]
+        return float((arr[mid - 1] + arr[mid]) * 0.5)
     if mode == "p75":
         arr = sorted(float(v) for v in values)
         if len(arr) == 1:
@@ -28,47 +34,113 @@ def _reduce_group_scores(values: List[float], reduce_mode: str) -> float:
     return float(max(values))
 
 
-def _weighted_mean(group_scores: Dict[str, float], groups: List[str], group_weights: Dict[str, float]) -> float:
-    selected = [g for g in groups if g in group_scores]
-    if not selected:
-        return 0.0
-    total = 0.0
-    weight_sum = 0.0
-    for g in selected:
-        w = float(group_weights.get(g, 1.0))
-        if w <= 0.0:
-            w = 1.0
-        total += w * float(group_scores[g])
-        weight_sum += w
-    if weight_sum <= 0.0:
-        return 0.0
-    return total / weight_sum
-
-
 def aggregate_compare_texts_group_scores(
-    group_scores: Dict[str, float],
     *,
-    group_weights: Dict[str, float],
-    negative_groups: List[str],
-    negative_scale: float,
+    positive_logits: List[float],
+    negative_logits: List[float],
+    reduce_mode: str,
 ) -> Dict[str, float]:
-    negative_set = {str(g).strip() for g in negative_groups if str(g).strip()}
-    pos_groups = [g for g in group_scores.keys() if g not in negative_set]
-    neg_groups = [g for g in group_scores.keys() if g in negative_set]
+    if positive_logits and negative_logits:
+        pairwise: List[float] = []
+        win_score = 0.0
+        for s_pos in positive_logits:
+            for s_neg in negative_logits:
+                margin = float(s_pos - s_neg)
+                pairwise.append(margin)
+                if margin > 0.0:
+                    win_score += 1.0
+                elif margin == 0.0:
+                    win_score += 0.5
+        s_pos = _reduce_group_scores(positive_logits, reduce_mode)
+        s_neg = _reduce_group_scores(negative_logits, reduce_mode)
+        s_margin = _reduce_group_scores(pairwise, reduce_mode)
+        s_win_rate = win_score / len(pairwise) if pairwise else 0.0
+        s_final = _clamp01(s_win_rate)
+        return {
+            "s_prompt_pos": float(s_pos),
+            "s_prompt_neg": float(s_neg),
+            "s_prompt_margin": float(s_margin),
+            "s_prompt_win_rate": float(s_win_rate),
+            "s_prompt": float(s_final),
+        }
 
-    s_pos = _weighted_mean(group_scores, pos_groups, group_weights)
-    s_neg = _weighted_mean(group_scores, neg_groups, group_weights)
-    neg_scale = max(0.0, float(negative_scale))
-    if neg_groups:
-        # Weighted blend of positive evidence and inverse negative evidence.
-        s_final = (s_pos + neg_scale * (1.0 - s_neg)) / (1.0 + neg_scale)
-    else:
-        s_final = s_pos
+    if positive_logits:
+        s_pos = _reduce_group_scores(positive_logits, reduce_mode)
+        s_final = _clamp01((1.0 + float(s_pos) / (1.0 + abs(float(s_pos)))) * 0.5)
+        return {
+            "s_prompt_pos": float(s_pos),
+            "s_prompt_neg": 0.0,
+            "s_prompt_margin": float(s_pos),
+            "s_prompt_win_rate": float(s_final),
+            "s_prompt": float(s_final),
+        }
+    if negative_logits:
+        s_neg = _reduce_group_scores(negative_logits, reduce_mode)
+        s_final = _clamp01(1.0 - (1.0 + float(s_neg) / (1.0 + abs(float(s_neg)))) * 0.5)
+        return {
+            "s_prompt_pos": 0.0,
+            "s_prompt_neg": float(s_neg),
+            "s_prompt_margin": -float(s_neg),
+            "s_prompt_win_rate": float(s_final),
+            "s_prompt": float(s_final),
+        }
     return {
-        "s_prompt_pos": _clamp01(s_pos),
-        "s_prompt_neg": _clamp01(s_neg),
-        "s_prompt": _clamp01(s_final),
+        "s_prompt_pos": 0.0,
+        "s_prompt_neg": 0.0,
+        "s_prompt_margin": -1.0,
+        "s_prompt_win_rate": 0.0,
+        "s_prompt": 0.0,
     }
+
+
+def _build_prompt_debug_rows(
+    *,
+    flat_texts: List[str],
+    flat_groups: List[str],
+    positive_indices: List[int],
+    negative_indices: List[int],
+    row_logits: List[float],
+    row_sigmoid: List[float],
+) -> List[Dict[str, Any]]:
+    pos_set = set(positive_indices)
+    neg_set = set(negative_indices)
+    details: List[Dict[str, Any]] = []
+    for idx, text in enumerate(flat_texts):
+        if idx in pos_set:
+            polarity = "positive"
+        elif idx in neg_set:
+            polarity = "negative"
+        else:
+            polarity = "neutral"
+        details.append(
+            {
+                "index": idx,
+                "group": flat_groups[idx],
+                "polarity": polarity,
+                "text": text,
+                "logit": float(row_logits[idx]),
+                "sigmoid": float(row_sigmoid[idx]),
+            }
+        )
+    return details
+
+
+def _build_pairwise_matrix(
+    *,
+    positive_indices: List[int],
+    negative_indices: List[int],
+    row_logits: List[float],
+) -> Tuple[List[List[float]], List[float]]:
+    matrix: List[List[float]] = []
+    flat: List[float] = []
+    for pos_idx in positive_indices:
+        row: List[float] = []
+        for neg_idx in negative_indices:
+            margin = float(row_logits[pos_idx] - row_logits[neg_idx])
+            row.append(margin)
+            flat.append(margin)
+        matrix.append(row)
+    return matrix, flat
 
 
 def compute_compare_texts_prompt_scores(
@@ -76,14 +148,13 @@ def compute_compare_texts_prompt_scores(
     runtime: ClipRuntime,
     *,
     compare_texts: Dict[str, List[str]],
-    group_weights: Dict[str, float],
     group_reduce: str = "max",
     negative_groups: List[str] | None = None,
-    negative_scale: float = 1.0,
 ) -> tuple[Dict[str, float], Dict[str, Any]]:
     from PIL import Image
 
     out: Dict[str, float] = {}
+    sample_details: Dict[str, Dict[str, Any]] = {}
     negative_set = {
         str(g).strip()
         for g in (negative_groups if negative_groups is not None else [])
@@ -115,38 +186,65 @@ def compute_compare_texts_prompt_scores(
             continue
 
         flat_texts: List[str] = []
-        group_spans: Dict[str, tuple[int, int]] = {}
+        flat_groups: List[str] = []
+        positive_indices: List[int] = []
+        negative_indices: List[int] = []
         for group, texts in non_empty_groups.items():
-            start = len(flat_texts)
-            flat_texts.extend(texts)
-            group_spans[group] = (start, len(flat_texts))
+            for text in texts:
+                idx = len(flat_texts)
+                flat_texts.append(text)
+                flat_groups.append(group)
+                if group in negative_set:
+                    negative_indices.append(idx)
+                else:
+                    positive_indices.append(idx)
 
         with Image.open(image_path) as img:
             image = img.convert("RGB")
             logits = image_text_logits(images=image, texts=flat_texts, runtime=runtime)
-        probs = runtime.torch_mod.sigmoid(logits)[0].tolist()
-
-        group_scores: Dict[str, float] = {}
-        for group, (start, end) in group_spans.items():
-            group_scores[group] = _clamp01(_reduce_group_scores([float(x) for x in probs[start:end]], group_reduce))
+        row_logits = [float(x) for x in logits[0].tolist()]
+        row_sigmoid = [float(x) for x in runtime.torch_mod.sigmoid(logits)[0].tolist()]
 
         agg = aggregate_compare_texts_group_scores(
-            group_scores,
-            group_weights=group_weights,
-            negative_groups=list(negative_set),
-            negative_scale=negative_scale,
+            positive_logits=[row_logits[i] for i in positive_indices],
+            negative_logits=[row_logits[i] for i in negative_indices],
+            reduce_mode=group_reduce,
         )
         out[sid] = agg["s_prompt"]
+        pairwise_matrix, pairwise_flat = _build_pairwise_matrix(
+            positive_indices=positive_indices,
+            negative_indices=negative_indices,
+            row_logits=row_logits,
+        )
+        sample_details[sid] = {
+            "algorithm": "pairwise_logit_margin_win_rate",
+            "reduce_mode": str(group_reduce).strip().lower() or "max",
+            "s_prompt": float(agg["s_prompt"]),
+            "s_prompt_pos": float(agg["s_prompt_pos"]),
+            "s_prompt_neg": float(agg["s_prompt_neg"]),
+            "s_prompt_margin": float(agg["s_prompt_margin"]),
+            "s_prompt_win_rate": float(agg["s_prompt_win_rate"]),
+            "direct_prompt_scores": _build_prompt_debug_rows(
+                flat_texts=flat_texts,
+                flat_groups=flat_groups,
+                positive_indices=positive_indices,
+                negative_indices=negative_indices,
+                row_logits=row_logits,
+                row_sigmoid=row_sigmoid,
+            ),
+            "pairwise_margins": pairwise_matrix,
+            "pairwise_margins_flat": pairwise_flat,
+        }
 
     return out, {
         "enabled": True,
         "reason": "",
         "groups": list(non_empty_groups.keys()),
+        "algorithm": "pairwise_logit_margin_win_rate",
         "group_reduce": str(group_reduce).strip().lower() or "max",
-        "group_weights": {k: float(group_weights.get(k, 1.0)) for k in non_empty_groups.keys()},
         "negative_groups": sorted(negative_set),
-        "negative_scale": float(max(0.0, negative_scale)),
         "missing_image_count": miss_image_count,
+        "sample_details": sample_details,
     }
 
 
