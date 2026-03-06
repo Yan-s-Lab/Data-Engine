@@ -1,5 +1,5 @@
 # 1) Summary
-- Add missing runtime dependencies for filter CLIP/SigLIP execution in managed Docker pipeline: `torch` and `transformers`.
+- Add missing runtime dependencies for filter CLIP/SigLIP execution in managed Docker pipeline: `torch`, `transformers`, and `torchvision`.
 - This is needed because filter phase currently fails at runtime with `ModuleNotFoundError: No module named 'torch'` in container execution.
 - Resolve dependency solver conflict by constraining `huggingface-hub` to `<1.0` (compatible with `transformers` 4.x).
 - Use `transformers>=4.57.1` to support `siglip2` model type used by filter configs.
@@ -10,6 +10,7 @@
 - Regenerate `requirements.txt` used by `deploy/pipeline/Dockerfile`.
 - Add a minimal test that guards required filter runtime dependencies are declared.
 - Update docs with operator note for Docker rebuild after dependency changes.
+- Avoid runtime fallback to slow image processor by ensuring `torchvision` exists in image.
 
 ### Out of scope
 - Algorithmic changes in filter scoring/selection.
@@ -59,8 +60,8 @@ Confirm imports follow: Orchestration -> Components -> Core
 
 ## 9) Test Plan (Minimum)
 - Add unit test:
-  - Verify `pyproject.toml` declares `torch` and `transformers`.
-  - Verify `requirements.txt` includes both packages after export.
+  - Verify `pyproject.toml` declares `torch`, `transformers`, and `torchvision`.
+  - Verify `requirements.txt` includes these packages after export.
 - Run:
   - `python -m unittest test/test_runtime_dependency_contract.py`
 
