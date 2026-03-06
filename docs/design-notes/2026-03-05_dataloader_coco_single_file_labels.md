@@ -119,5 +119,5 @@ Orchestration → Components → Core
 - [x] Code changes implemented
 - [x] Tests added/updated
 - [x] Docs updated
-- [ ] Git commit message:
-- [ ] Pushed to remote
+- [x] Git commit message: `dataloader: support COCO single-file labels in norm stage`
+- [x] Pushed to remote (`rewrite/cli-data-engine`)
