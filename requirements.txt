@@ -109,8 +109,12 @@ starlette==0.50.0
     # via fastapi
 tomli==2.3.0 ; python_full_version < '3.11'
     # via alembic
+torch==2.3.0
+    # via dataengine
 tqdm==4.67.1
     # via huggingface-hub
+transformers==4.48.0
+    # via dataengine
 typer-slim==0.20.0
     # via huggingface-hub
 typing-extensions==4.15.0

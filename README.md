@@ -91,6 +91,11 @@ Managed pipeline / Docker note:
 - If you run filter via `pipelines/run_managed_pipeline.py` or `deploy/pipeline/docker-compose.pipeline.yml`,
   set `pipeline.steps: [filter]` in your config (or in serial plan task config), otherwise default steps include
   `dataloader/generate/train/eval`.
+- Filter CLIP/SigLIP stages require `torch` and `transformers` in the runtime image. After pulling dependency changes,
+  rebuild pipeline image before rerun:
+```bash
+docker compose -f deploy/pipeline/docker-compose.pipeline.yml build --no-cache dataengine-pipeline
+```
 
 ## OpenPose (local external clone)
 
