@@ -16,6 +16,7 @@ filter:
   input_manifests: configs/coco_pose_2017__expansion/filter/artifacts/tmp/body_pose_coco_siglip2_input_manifest.jsonl
   # 用下面的 compared_prompt字段配置这个标注 accept/reject 数据集做阈值计算
   siglip2_baseline_labeled: artifacts/tmp/siglip2_baseline_labeled.json
+  siglip2_margin_threshold: 0.9245478312174482
   
 
   clip:
@@ -55,6 +56,34 @@ filter:
           - a person with extra limbs
           - a cartoon style image
           - 3d rendered character
+
+  phase2_roi_pose:
+    enabled: true
+    # input_manifest: artifacts/runs/yk003/body_pose_coco/body_pose_coco_filter/filter/splits/accept.jsonl
+    device: auto
+    min_person_score: 0.25
+    min_keypoints: 12
+    keypoint_score_threshold: 0.5
+    min_bbox_area_ratio: 0.05
+    max_bbox_area_ratio: 1.0
+    pose:
+      enabled: true
+      model: third_party/yolo26x-pose.pt
+      conf: 0.25
+      iou: 0.45
+    detection:
+      enabled: false
+      model: yolo11n.pt
+      conf: 0.25
+      iou: 0.45
+    segmentation:
+      enabled: false
+      area_ratio_field: person_mask_area_ratio
+    routing:
+      keypoint_fail_action: uncertain
+      bbox_fail_action: reject
+      no_person_fail_action: reject
+      pose_missing_action: uncertain
 
 pipeline:
   steps: [filter]

@@ -108,7 +108,12 @@ pipeline:
 python filter/utils/build_siglip2_input_manifest.py --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_input_construction.yaml
 python filter/utils/evaluate_siglip2_margin_threshold.py --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml
 python filter/filter_stages/filter1/main.py --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml
+python filter/filter_stages/filter2/main.py --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml
 ```
+
+说明：
+- `filter2` 默认使用 `third_party/yolo26x-pose.pt` 做 pose+ROI 校验。
+- `filter2` 输出 `filter2_scores.jsonl` 和 `splits/filter2_{accept,reject,uncertain}.jsonl`。
 
 ## 7. Docker 容器编排 Demo（启动 / 终止 / 重启）
 
