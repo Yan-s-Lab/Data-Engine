@@ -214,6 +214,7 @@ def main() -> None:
         "filter_dir": str(run_paths["filter_dir"]),
         "pipeline_dir": str(run_paths["pipeline_dir"]),
         "pipline_dir": str(run_paths["pipline_dir"]),
+        "pipline_dir_available": bool(run_paths.get("pipline_dir_available", True)),
         "model_id": model_id,
         "device": device,
         "top_k": int(args.top_k),

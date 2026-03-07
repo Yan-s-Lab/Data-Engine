@@ -53,12 +53,19 @@ def resolve_filter_and_pipeline_dirs(config: Dict[str, Any]) -> Dict[str, Path]:
     pipline_dir = run_dir / "pipline"
     filter_dir.mkdir(parents=True, exist_ok=True)
     pipeline_dir.mkdir(parents=True, exist_ok=True)
-    pipline_dir.mkdir(parents=True, exist_ok=True)
+    pipline_dir_available = True
+    try:
+        # Legacy alias: best effort only; do not fail whole run if this path
+        # cannot be created due to permission or mount restrictions.
+        pipline_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        pipline_dir_available = False
     return {
         "run_dir": run_dir,
         "filter_dir": filter_dir,
         "pipeline_dir": pipeline_dir,
         "pipline_dir": pipline_dir,
+        "pipline_dir_available": pipline_dir_available,
     }
 
 

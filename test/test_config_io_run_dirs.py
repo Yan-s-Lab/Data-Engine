@@ -26,10 +26,10 @@ class ConfigIoRunDirsTest(unittest.TestCase):
             self.assertTrue(out["run_dir"].exists())
             self.assertTrue(out["filter_dir"].exists())
             self.assertTrue(out["pipeline_dir"].exists())
-            self.assertTrue(out["pipline_dir"].exists())
             self.assertEqual(out["filter_dir"], out["run_dir"] / "filter")
             self.assertEqual(out["pipeline_dir"], out["run_dir"] / "pipeline")
             self.assertEqual(out["pipline_dir"], out["run_dir"] / "pipline")
+            self.assertIn("pipline_dir_available", out)
 
 
 if __name__ == "__main__":
