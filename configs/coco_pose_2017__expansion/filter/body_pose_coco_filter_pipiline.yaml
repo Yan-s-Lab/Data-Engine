@@ -13,12 +13,10 @@ filter:
         # 可能需要的参数...
       # - id: phase2_weak_model_detectest # 跟据任务去设置
         # 可能需要的参数...
-  input_manifests:  # generation 的产出，可以多批次的任务
-    - artifacts/runs/yk003/body_pose_coco/body_pose_coco__prompt/generate/synth_manifest.jsonl
-    - artifacts/runs/yk003/body_pose_coco/body_pose_coco__prompt_canny/generate/synth_manifest.jsonl
-
-  # 可能上面用到了source image 作为 guided 生成，例如我们的body_pose_coco__prompt_canny任务就用到了，那么可以通过这个产出文件找到对应的 guided image 的真实地址
-  anchor_real_manifest: artifacts/runs/yk003/body_pose_coco/body_pose_coco_norm/dataloader/real_manifest.jsonl
+  input_manifests: configs/coco_pose_2017__expansion/filter/artifacts/tmp/body_pose_coco_siglip2_input_manifest.jsonl
+  # 用下面的 compared_prompt字段配置这个标注 accept/reject 数据集做阈值计算
+  siglip2_baseline_labeled: artifacts/tmp/siglip2_baseline_labeled.json
+  
 
   clip:
     model_id: google/siglip2-so400m-patch16-naflex # siglip2 is better model compare with “clip / siglip...”
