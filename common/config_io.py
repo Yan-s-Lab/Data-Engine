@@ -37,6 +37,31 @@ def resolve_run_dir(config: Dict[str, Any]) -> Path:
     return run_dir
 
 
+def resolve_run_subdir(config: Dict[str, Any], subdir: str) -> Path:
+    name = str(subdir).strip().strip("/")
+    if not name:
+        raise ValueError("subdir must not be empty")
+    out = resolve_run_dir(config) / name
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+def resolve_filter_and_pipeline_dirs(config: Dict[str, Any]) -> Dict[str, Path]:
+    run_dir = resolve_run_dir(config)
+    filter_dir = run_dir / "filter"
+    pipeline_dir = run_dir / "pipeline"
+    pipline_dir = run_dir / "pipline"
+    filter_dir.mkdir(parents=True, exist_ok=True)
+    pipeline_dir.mkdir(parents=True, exist_ok=True)
+    pipline_dir.mkdir(parents=True, exist_ok=True)
+    return {
+        "run_dir": run_dir,
+        "filter_dir": filter_dir,
+        "pipeline_dir": pipeline_dir,
+        "pipline_dir": pipline_dir,
+    }
+
+
 def parse_bool(value: Any, default: bool) -> bool:
     if value is None:
         return default

@@ -5,6 +5,7 @@
 # 2) Scope
 ## In scope
 - Add shared SigLIP2 inference core utility to avoid duplicated model inference logic.
+- Add shared run output directory resolution utility for `run_dir/filter/pipeline/pipline`.
 - Implement filter1 stage entrypoint and decision/report outputs.
 - Reuse existing top-k margin core (`common/siglip2_margin_threshold.py`).
 - Add minimal tests for filter1 threshold/row contract logic.
@@ -58,6 +59,12 @@
   1. `--threshold`
   2. `--threshold-report` with `best_threshold`
   3. `filter.siglip2_margin_threshold`
+
+- Output dir resolution:
+  - use `common.config_io.resolve_filter_and_pipeline_dirs(config)` to create/resolve:
+    - `artifacts_root/run_id/filter`
+    - `artifacts_root/run_id/pipeline`
+    - `artifacts_root/run_id/pipline` (legacy alias)
 
 # 7) Registry / Dispatch Plan (If applicable)
 - Not applicable. This is a standalone stage entry script.

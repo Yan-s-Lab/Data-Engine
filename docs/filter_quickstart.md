@@ -37,3 +37,4 @@ python filter/filter_stages/filter1/main.py \
   --threshold-report artifacts/tmp/siglip2_margin_threshold_report.json \
   --top-k 3
 ```
+默认输出目录：`artifacts_root/run_id/filter`（同时会解析/创建 `pipeline` 与 `pipline` 目录）。

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from common.config_io import load_config, resolve_run_dir
+from common.config_io import load_config, resolve_filter_and_pipeline_dirs
 from common.manifest_io import read_jsonl, write_json, write_jsonl
 from common.siglip2_inference import compute_siglip2_logits_for_image, load_siglip2_runtime
 from common.siglip2_margin_threshold import compute_margin
@@ -160,7 +160,9 @@ def main() -> None:
 
     config_path = Path(args.config).resolve()
     config = load_config(config_path)
-    run_dir = resolve_run_dir(config)
+    run_paths = resolve_filter_and_pipeline_dirs(config)
+    run_dir = run_paths["run_dir"]
+    filter_dir = run_paths["filter_dir"]
     filter_cfg = dict(config.get("filter", {}))
     clip_cfg = dict(filter_cfg.get("clip", {}))
     compared_prompt = dict(clip_cfg.get("compared_prompt", {}))
@@ -196,7 +198,7 @@ def main() -> None:
     accept_rows = [r for r in score_rows if r.get("decision") == "accept"]
     reject_rows = [r for r in score_rows if r.get("decision") == "reject"]
 
-    default_output_dir = run_dir / "filter" / "filter1"
+    default_output_dir = filter_dir
     output_dir = Path(args.output_dir).resolve() if str(args.output_dir).strip() else default_output_dir
     splits_dir = output_dir / "splits"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -208,6 +210,10 @@ def main() -> None:
 
     report = {
         "stage": "filter1",
+        "run_dir": str(run_dir),
+        "filter_dir": str(run_paths["filter_dir"]),
+        "pipeline_dir": str(run_paths["pipeline_dir"]),
+        "pipline_dir": str(run_paths["pipline_dir"]),
         "model_id": model_id,
         "device": device,
         "top_k": int(args.top_k),
