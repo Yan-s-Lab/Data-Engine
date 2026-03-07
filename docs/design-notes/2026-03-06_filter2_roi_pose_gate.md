@@ -135,5 +135,5 @@ filter:
 - [x] Code changes implemented
 - [x] Tests added/updated
 - [x] Docs updated
-- [ ] Git commit message:
-- [ ] Pushed to remote
+- [x] Git commit message: `add filter2 ROI+pose gating with YOLO and uncertain routing`
+- [x] Pushed to remote
