@@ -28,7 +28,7 @@ from common.config_io import load_config, resolve_run_dir
 STAGE_TO_SCRIPT = {
     "dataloader": "ingest/run_dataloader.py",
     "generate": "synth/run_generate.py",
-    "filter": "filter/run_filter.py",
+    "filter": "filter/filter_stages/filter1/main.py",
     "train": "train/run_train.py",
     "eval": "eval/run_eval.py",
 }
@@ -56,8 +56,9 @@ def build_runtime_config(config: Dict[str, Any]) -> Dict[str, Any]:
 
     # 读取 filter 子配置；若不存在则用空字典
     filter_cfg = dict(cfg.get("filter", {}))
-    # 若用户未显式指定 filter.input_manifest，则自动接 generate 产物
-    filter_cfg.setdefault("input_manifest", str(run_dir / "generate" / "synth_manifest.jsonl"))
+    # 若用户未显式指定 filter.input_manifests，则自动接 generate 产物
+    if "input_manifests" not in filter_cfg:
+        filter_cfg["input_manifests"] = [str(run_dir / "generate" / "synth_manifest.jsonl")]
     # 把补全后的 filter 配置写回总配置
     cfg["filter"] = filter_cfg
     # 返回“可直接执行”的运行时配置

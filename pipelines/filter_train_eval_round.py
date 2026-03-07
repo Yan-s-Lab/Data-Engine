@@ -24,7 +24,7 @@ def main() -> None:
     args = parser.parse_args()
 
     py = args.python_bin
-    run([py, "filter/run_filter.py", "--config", str(args.config)])
+    run([py, "filter/filter_stages/filter1/main.py", "--config", str(args.config)])
     run([py, "train/run_train.py", "--config", str(args.config)])
     run([py, "eval/run_eval.py", "--config", str(args.config)])
     print("minimal round done: filter -> train -> eval")

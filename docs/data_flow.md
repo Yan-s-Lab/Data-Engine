@@ -9,7 +9,7 @@
 
 ## 2. 当前已稳定链路
 
-`dataloader -> generation -> filter(phase1)`
+`dataloader -> generation -> filter(siglip2-margin)`
 
 说明：
 - `annotation / HITL / training` 仍在目标态，未并入当前默认主流程。
@@ -22,6 +22,9 @@
 - kernel 分文档：
   - `docs/kernels/dataloader_norm.md`
   - `docs/kernels/control_generation.md`
-  - `docs/kernels/filter_phase1.md`
+- filter 入口脚本：
+  - `filter/utils/build_siglip2_input_manifest.py`
+  - `filter/utils/evaluate_siglip2_margin_threshold.py`
+  - `filter/filter_stages/filter1/main.py`
 - 事实状态：
   - `docs/state/data_engine_state.md`

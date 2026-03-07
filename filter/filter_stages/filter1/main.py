@@ -12,8 +12,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from common.config_io import load_config, resolve_filter_and_pipeline_dirs
-from common.filter_prompt_contract import resolve_prompt_groups
 from common.manifest_io import read_jsonl, write_json, write_jsonl
+from common.siglip2_inference import compute_siglip2_logits_for_image, load_siglip2_runtime
 from common.siglip2_margin_threshold import compute_margin
 
 
@@ -132,8 +132,6 @@ def _decide_rows(
     negative_prompts: List[str],
     top_k: int,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
-    from common.siglip2_inference import compute_siglip2_logits_for_image
-
     all_prompts = positive_prompts + negative_prompts
     score_rows: List[Dict[str, Any]] = []
     counters = {"accept": 0, "reject": 0}
@@ -184,14 +182,11 @@ def main() -> None:
     filter_dir = run_paths["filter_dir"]
     filter_cfg = dict(config.get("filter", {}))
     clip_cfg = dict(filter_cfg.get("clip", {}))
-    prompt_groups, prompt_groups_source = resolve_prompt_groups(clip_cfg)
-    positive_prompts = prompt_groups.get("positive", [])
-    negative_prompts = prompt_groups.get("negative", [])
+    compared_prompt = dict(clip_cfg.get("compared_prompt", {}))
+    positive_prompts = [str(x).strip() for x in compared_prompt.get("positive", []) if str(x).strip()]
+    negative_prompts = [str(x).strip() for x in compared_prompt.get("negative", []) if str(x).strip()]
     if not positive_prompts or not negative_prompts:
-        raise ValueError(
-            "positive/negative prompt groups must be configured via one of "
-            "filter.clip.compare-texts, filter.clip.compare_texts, filter.clip.compared_prompt"
-        )
+        raise ValueError("filter.clip.compared_prompt.positive and negative must be non-empty lists")
 
     threshold, threshold_source = _resolve_threshold(
         cli_threshold=args.threshold,
@@ -204,8 +199,6 @@ def main() -> None:
     rows = [_normalize_row(r, row_index=i, base_dir=config_path.parent) for i, r in enumerate(raw_rows)]
 
     model_id = str(clip_cfg.get("model_id", "google/siglip2-so400m-patch16-naflex")).strip()
-    from common.siglip2_inference import load_siglip2_runtime
-
     model, processor, device = load_siglip2_runtime(model_id=model_id, device_cfg=str(clip_cfg.get("device", "auto")))
 
     score_rows, counters = _decide_rows(
@@ -248,7 +241,6 @@ def main() -> None:
         "top_k": int(args.top_k),
         "threshold": threshold,
         "threshold_source": threshold_source,
-        "prompt_groups_source": prompt_groups_source,
         "output_dir_source": output_dir_source,
         "input_manifest_count": len(manifest_paths),
         "input_row_count": len(rows),

@@ -27,10 +27,10 @@
 - 输入：real manifest + ComfyUI workflow + prompt/control 配置
 - 输出：`synth_manifest.jsonl`
 
-3. `Filter (phase1 now)`
-- 输入：`synth_manifest.jsonl`（推荐）或显式 manifest
-- 输出：`filter_scores.jsonl` + `accept/reject/uncertain`
-- 约束：当前仅支持 `filter.mode=compose`（phase1 v1 极简路径）
+3. `Filter (SigLIP2 margin now)`
+- 输入：`filter.input_manifests`（推荐使用输入构建脚本先生成）
+- 输出：`filter1_scores.jsonl` + `accept/reject`
+- 约束：当前入口为 `filter/filter_stages/filter1/main.py`
 
 4. `Annotation <-> HITL`（目标态，未并入当前主路径）
 
@@ -42,7 +42,7 @@
 | --- | --- | --- |
 | DataLoader | `dataloader/real_manifest.jsonl` | Generation 通过 `generate.real_manifest` 读取 |
 | Control Generation | `generate/synth_manifest.jsonl` | Filter 作为主输入 manifest（推荐自动发现） |
-| Filter(phase1) | `filter_scores.jsonl` + `splits/*` | 目标态交给 Annotation/HITL/Training（当前未并入默认主路径） |
+| Filter(SigLIP2) | `filter1_scores.jsonl` + `splits/*` | 目标态交给 Annotation/HITL/Training（当前未并入默认主路径） |
 | Annotation/HITL（目标态） | 清洗标注数据集 | Training 消费 |
 | Training（目标态） | 模型与评估产物 | 反馈下轮配置/策略 |
 
@@ -52,11 +52,10 @@
   [docs/kernels/dataloader_norm.md](./kernels/dataloader_norm.md)
 - Control Generation（ComfyUI）：
   [docs/kernels/control_generation.md](./kernels/control_generation.md)
-- Filter（phase1）：
-  [docs/kernels/filter_phase1.md](./kernels/filter_phase1.md)
-
-兼容入口（历史名称）：
-- [docs/filter_quickstart.md](./filter_quickstart.md)
+- Filter（SigLIP2）入口：
+  - `filter/utils/build_siglip2_input_manifest.py`
+  - `filter/utils/evaluate_siglip2_margin_threshold.py`
+  - `filter/filter_stages/filter1/main.py`
 
 ## 5. 运行前准备（入口）
 
@@ -94,7 +93,7 @@ serial_plan:
 `deploy/pipeline/.env` 变量优先级：
 `PIPELINE_SERIAL_PLAN` > `PIPELINE_CONFIG_LIST_FILE/PIPELINE_CONFIGS` > `PIPELINE_CONFIG`
 
-### 6.1 仅运行 Filter phase1（推荐最简）
+### 6.1 仅运行 Filter（SigLIP2）
 
 若只想跑 filter，请在配置中显式设置：
 
@@ -103,12 +102,12 @@ pipeline:
   steps: [filter]
 ```
 
-并保证 `filter.mode=compose`。
-
-可直接使用 smoke config：
+可直接按 3 步运行：
 
 ```bash
-python filter/run_filter.py --config test/test-filters/configs/filter_compose.yaml
+python filter/utils/build_siglip2_input_manifest.py --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_input_construction.yaml
+python filter/utils/evaluate_siglip2_margin_threshold.py --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml
+python filter/filter_stages/filter1/main.py --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml
 ```
 
 ## 7. Docker 容器编排 Demo（启动 / 终止 / 重启）

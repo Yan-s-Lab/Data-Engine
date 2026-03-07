@@ -60,7 +60,6 @@ sudo chown -R "$USER":"$USER" data/comfyui
 ## Kernel Docs
 - `docs/kernels/dataloader_norm.md`
 - `docs/kernels/control_generation.md`
-- `docs/kernels/filter_phase1.md`
 
 ## Verified examples in `configs/examples`
 
@@ -76,16 +75,23 @@ python synth/run_generate.py \
   --config configs/examples/comfyui_generate_from_norm_yk001_prompt_only_managed.yaml
 ```
 
-3. Filter phase1 stage smoke test:
+3. Build SigLIP2 filter input manifest:
 ```bash
-python filter/run_filter.py \
-  --config test/test-filters/configs/filter_compose.yaml
+python filter/utils/build_siglip2_input_manifest.py \
+  --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_input_construction.yaml
 ```
 
-Current constraint:
-- Filter is phase1 minimal path only.
-- `filter/run_filter.py` supports `filter.mode=compose` only.
-- `stub/pcs_clip/staged_clip` are removed.
+4. Evaluate threshold on labeled accept/reject set:
+```bash
+python filter/utils/evaluate_siglip2_margin_threshold.py \
+  --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml
+```
+
+5. Run filter stage:
+```bash
+python filter/filter_stages/filter1/main.py \
+  --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml
+```
 
 Managed pipeline / Docker note:
 - If you run filter via `pipelines/run_managed_pipeline.py` or `deploy/pipeline/docker-compose.pipeline.yml`,
