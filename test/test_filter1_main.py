@@ -69,6 +69,25 @@ class Filter1MainTest(unittest.TestCase):
             self.assertEqual(out["generative_type"], "prompt")
             self.assertEqual(out["image_path"], str(image_path))
 
+    def test_resolve_output_dir_fallback_when_default_unwritable(self) -> None:
+        mod = _load_module()
+        with tempfile.TemporaryDirectory(prefix="filter1_out_") as td:
+            root = Path(td)
+            default_dir = root / "default_filter_dir"
+            default_dir.mkdir(parents=True, exist_ok=True)
+            default_dir.chmod(0o555)
+            try:
+                out, source = mod._resolve_output_dir(
+                    explicit_output_dir="",
+                    default_output_dir=default_dir,
+                    config={"run": {"run_id": "demo"}},
+                )
+                self.assertTrue(out.exists())
+                self.assertEqual(source, "fallback.artifacts_tmp_filter1")
+            finally:
+                # Restore permissions so tempfile cleanup can remove the directory.
+                default_dir.chmod(0o755)
+
 
 if __name__ == "__main__":
     unittest.main()

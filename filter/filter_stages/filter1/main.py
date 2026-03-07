@@ -89,6 +89,41 @@ def _resolve_threshold(
     raise ValueError("threshold not provided: pass --threshold or --threshold-report, or set filter.siglip2_margin_threshold")
 
 
+def _is_dir_writable(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        return False
+    probe = path / ".write_probe.tmp"
+    try:
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return True
+    except OSError:
+        return False
+
+
+def _resolve_output_dir(
+    *,
+    explicit_output_dir: str,
+    default_output_dir: Path,
+    config: Dict[str, Any],
+) -> tuple[Path, str]:
+    if str(explicit_output_dir).strip():
+        out = Path(explicit_output_dir).resolve()
+        out.mkdir(parents=True, exist_ok=True)
+        return out, "cli.output_dir"
+
+    if _is_dir_writable(default_output_dir):
+        return default_output_dir, "default.filter_dir"
+
+    run_cfg = dict(config.get("run", {}))
+    run_id = str(run_cfg.get("run_id", "m1_local_run")).strip() or "m1_local_run"
+    fallback = (ROOT / "artifacts" / "tmp" / "filter1" / run_id).resolve()
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback, "fallback.artifacts_tmp_filter1"
+
+
 def _decide_rows(
     *,
     rows: List[Dict[str, Any]],
@@ -199,7 +234,11 @@ def main() -> None:
     reject_rows = [r for r in score_rows if r.get("decision") == "reject"]
 
     default_output_dir = filter_dir
-    output_dir = Path(args.output_dir).resolve() if str(args.output_dir).strip() else default_output_dir
+    output_dir, output_dir_source = _resolve_output_dir(
+        explicit_output_dir=str(args.output_dir),
+        default_output_dir=default_output_dir,
+        config=config,
+    )
     splits_dir = output_dir / "splits"
     output_dir.mkdir(parents=True, exist_ok=True)
     splits_dir.mkdir(parents=True, exist_ok=True)
@@ -220,6 +259,7 @@ def main() -> None:
         "top_k": int(args.top_k),
         "threshold": threshold,
         "threshold_source": threshold_source,
+        "output_dir_source": output_dir_source,
         "input_manifest_count": len(manifest_paths),
         "input_row_count": len(rows),
         "accept": len(accept_rows),
