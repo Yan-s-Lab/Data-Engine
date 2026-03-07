@@ -12,8 +12,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from common.config_io import load_config, resolve_run_dir
+from common.filter_prompt_contract import resolve_prompt_groups
 from common.manifest_io import write_json
-from common.siglip2_inference import compute_siglip2_logits_for_image, load_siglip2_runtime
 from common.siglip2_margin_threshold import (
     compute_margin,
     sweep_best_f1_threshold,
@@ -77,11 +77,14 @@ def main() -> None:
 
     filter_cfg = dict(config.get("filter", {}))
     clip_cfg = dict(filter_cfg.get("clip", {}))
-    compared_prompt = dict(clip_cfg.get("compared_prompt", {}))
-    positive_prompts = [str(x).strip() for x in compared_prompt.get("positive", []) if str(x).strip()]
-    negative_prompts = [str(x).strip() for x in compared_prompt.get("negative", []) if str(x).strip()]
+    prompt_groups, prompt_groups_source = resolve_prompt_groups(clip_cfg)
+    positive_prompts = prompt_groups.get("positive", [])
+    negative_prompts = prompt_groups.get("negative", [])
     if not positive_prompts or not negative_prompts:
-        raise ValueError("filter.clip.compared_prompt.positive and negative must be non-empty lists")
+        raise ValueError(
+            "positive/negative prompt groups must be configured via one of "
+            "filter.clip.compare-texts, filter.clip.compare_texts, filter.clip.compared_prompt"
+        )
 
     labeled_raw = str(filter_cfg.get("siglip2_baseline_labeled", "")).strip()
     if not labeled_raw:
@@ -90,6 +93,8 @@ def main() -> None:
     rows = _load_labeled_rows(labeled_path)
 
     model_id = str(clip_cfg.get("model_id", "google/siglip2-so400m-patch16-naflex")).strip()
+    from common.siglip2_inference import compute_siglip2_logits_for_image, load_siglip2_runtime
+
     model, processor, device = load_siglip2_runtime(model_id=model_id, device_cfg=str(clip_cfg.get("device", "auto")))
 
     all_prompts = positive_prompts + negative_prompts
@@ -139,6 +144,7 @@ def main() -> None:
         "top_k": int(args.top_k),
         "selection_policy": selection_policy,
         "min_precision": args.min_precision,
+        "prompt_groups_source": prompt_groups_source,
         "total": len(samples),
         "best_threshold": float(best["threshold"]),
         "precision": float(best["precision"]),

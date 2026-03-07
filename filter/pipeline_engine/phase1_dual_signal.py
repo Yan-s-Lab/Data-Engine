@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from common.filter_prompt_contract import resolve_prompt_groups
 from filter.filter_stages import (
     build_image_embeddings,
     compute_compare_texts_prompt_scores,
@@ -45,16 +46,15 @@ def _phase1_runtime_config(filter_cfg: Dict[str, Any], filter_dir: Path) -> Dict
 
 
 def _resolve_compare_texts_config(clip_cfg: Dict[str, Any]) -> Dict[str, Any]:
-    raw = clip_cfg.get("compare-texts", clip_cfg.get("compare_texts", {}))
-    if not isinstance(raw, dict):
-        return {"enabled": False, "groups": {}}
-    positive = [str(x).strip() for x in raw.get("positive", []) if str(x).strip()] if isinstance(raw.get("positive", []), list) else []
-    negative = [str(x).strip() for x in raw.get("negative", []) if str(x).strip()] if isinstance(raw.get("negative", []), list) else []
+    groups, groups_source = resolve_prompt_groups(clip_cfg)
+    positive = groups.get("positive", [])
+    negative = groups.get("negative", [])
     if not positive or not negative:
-        return {"enabled": False, "groups": {}}
+        return {"enabled": False, "groups": {}, "groups_source": ""}
     return {
         "enabled": True,
         "groups": {"positive": positive, "negative": negative},
+        "groups_source": groups_source,
     }
 
 
@@ -129,6 +129,7 @@ def _build_phase1_report(
         "prompt_text_source": str(clip_cfg.get("prompt_text_source", "")),
         "prompt_score_mode": runtime_cfg["prompt_score_mode"],
         "compare_texts": compare_texts_state,
+        "compare_texts_groups_source": str(runtime_cfg.get("compare_texts_cfg", {}).get("groups_source", "")),
         "phase1_semantic": {
             "enabled": True,
             "phase1_version": "dual_signal",

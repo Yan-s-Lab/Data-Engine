@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Set, Tuple
 
 from common.config_io import load_config
 from common.manifest_io import read_jsonl
-from filter.manifest_builder import build_input_manifest_from_config
+from filter.utils.manifest_builder import build_input_manifest_from_config
 
 
 ROOT = Path(__file__).resolve().parents[2]

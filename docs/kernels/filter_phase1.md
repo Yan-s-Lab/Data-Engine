@@ -15,6 +15,7 @@
 - 输入与清单处理：`filter/pipeline_engine/io_ops.py`
 - phase 调度器与注册表：`filter/pipeline_engine/orchestrator.py`
 - phase1 dual-signal 算法：`filter/pipeline_engine/phase1_dual_signal.py`
+- phase1 兼容打分 facade：`filter/filter_stages/__init__.py`
 
 当前 `run_filter.py` 只负责：
 - 读取配置
@@ -80,7 +81,11 @@ filter:
 2. 两个原始分数（仅保留）
 - `s_prompt`（text vs image）：
   - SigLIP2 路径不再把 `sigmoid` 当作绝对概率做决策。
-  - 若配置了 `filter.clip.compare-texts`，使用正负文本对比：
+  - 正负 prompt 组支持三种 key（按优先级）：
+    - `filter.clip.compare-texts`
+    - `filter.clip.compare_texts`
+    - `filter.clip.compared_prompt`（legacy）
+  - 若配置了可用的正负 prompt 组，使用正负文本对比：
     - 仅支持两个字段：`compare-texts.positive` 与 `compare-texts.negative`
     - 先拿到每个 prompt 的直接 `logit/sigmoid`（用于日志）
     - 对正负 prompt 做全组合 margin：`margin = logit_pos - logit_neg`
