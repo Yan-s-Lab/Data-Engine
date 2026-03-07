@@ -33,7 +33,12 @@
   - Outputs: best threshold and metrics (`precision`, `recall`, `f1`, confusion matrix).
   - Error handling: raises `ValueError` on length mismatch or empty input.
 
-- `python filter/evaluate_siglip2_margin_threshold.py --config <yaml> [--top-k 3] [--output <json>]`
+- `common.siglip2_margin_threshold.sweep_best_threshold_at_min_precision(margins: Sequence[float], labels: Sequence[int], *, min_precision: float) -> dict[str, Any]`
+  - Inputs: margins, labels, and minimum precision constraint.
+  - Outputs: threshold that maximizes recall under `precision >= min_precision`.
+  - Error handling: raises `ValueError` when no threshold satisfies the constraint.
+
+- `python filter/evaluate_siglip2_margin_threshold.py --config <yaml> [--top-k 3] [--min-precision 0.9] [--output <json>]`
   - Reads:
     - `filter.siglip2_baseline_labeled`
     - `filter.clip.compared_prompt.positive`
@@ -70,6 +75,7 @@
   - `filter.clip.compared_prompt.negative: list[str]`
 - Defaults:
   - `top_k=3` (CLI default)
+  - `min_precision=None` (default objective is max F1)
   - device resolves to `cuda` when available if config is `auto`
 - Validation rules:
   - prompt groups must both be non-empty

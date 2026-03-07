@@ -17,7 +17,11 @@ if str(ROOT) not in sys.path:
 
 from common.config_io import load_config, resolve_run_dir
 from common.manifest_io import write_json
-from common.siglip2_margin_threshold import compute_margin, sweep_best_f1_threshold
+from common.siglip2_margin_threshold import (
+    compute_margin,
+    sweep_best_f1_threshold,
+    sweep_best_threshold_at_min_precision,
+)
 
 
 def _resolve_path(raw: str, *, base_dir: Path) -> Path:
@@ -80,11 +84,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Find best F1 threshold from SigLIP2 logits margins")
     parser.add_argument("--config", required=True, help="Filter yaml/json config path")
     parser.add_argument("--top-k", type=int, default=3, help="Top-k for positive/negative logits aggregation")
+    parser.add_argument(
+        "--min-precision",
+        type=float,
+        default=None,
+        help="Optional precision constraint in [0,1]. If set, choose threshold with max recall under precision>=min_precision.",
+    )
     parser.add_argument("--output", default="", help="Optional output report JSON path")
     args = parser.parse_args()
 
     if args.top_k <= 0:
         raise ValueError("--top-k must be > 0")
+    if args.min_precision is not None and not (0.0 <= float(args.min_precision) <= 1.0):
+        raise ValueError("--min-precision must be within [0,1]")
 
     config_path = Path(args.config).resolve()
     config = load_config(config_path)
@@ -142,11 +154,22 @@ def main() -> None:
         margins.append(float(margin_stats["margin"]))
         labels.append(label_binary)
 
-    best = sweep_best_f1_threshold(margins=margins, labels=labels)
+    if args.min_precision is None:
+        best = sweep_best_f1_threshold(margins=margins, labels=labels)
+        selection_policy = "max_f1"
+    else:
+        best = sweep_best_threshold_at_min_precision(
+            margins=margins,
+            labels=labels,
+            min_precision=float(args.min_precision),
+        )
+        selection_policy = "max_recall_at_min_precision"
     report = {
         "model_id": model_id,
         "device": device,
         "top_k": int(args.top_k),
+        "selection_policy": selection_policy,
+        "min_precision": args.min_precision,
         "total": len(samples),
         "best_threshold": float(best["threshold"]),
         "precision": float(best["precision"]),

@@ -65,7 +65,7 @@ def _metrics_from_confusion(tn: int, fp: int, fn: int, tp: int) -> Dict[str, flo
     }
 
 
-def sweep_best_f1_threshold(margins: Sequence[float], labels: Sequence[int]) -> Dict[str, Any]:
+def _validate_inputs(margins: Sequence[float], labels: Sequence[int]) -> None:
     if not margins:
         raise ValueError("margins must not be empty")
     if len(margins) != len(labels):
@@ -74,18 +74,29 @@ def sweep_best_f1_threshold(margins: Sequence[float], labels: Sequence[int]) -> 
         if label not in (0, 1):
             raise ValueError("labels must be binary 0/1")
 
-    candidates = sorted(set(float(x) for x in margins))
-    best: Dict[str, Any] | None = None
-    for threshold in candidates:
+
+def _all_candidates(margins: Sequence[float], labels: Sequence[int]) -> List[Dict[str, Any]]:
+    candidates: List[Dict[str, Any]] = []
+    for threshold in sorted(set(float(x) for x in margins)):
         tn, fp, fn, tp = _confusion(margins, labels, threshold)
         metrics = _metrics_from_confusion(tn, fp, fn, tp)
-        current = {
-            "threshold": float(threshold),
-            "precision": metrics["precision"],
-            "recall": metrics["recall"],
-            "f1": metrics["f1"],
-            "confusion_matrix": [[tn, fp], [fn, tp]],
-        }
+        candidates.append(
+            {
+                "threshold": float(threshold),
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "f1": metrics["f1"],
+                "confusion_matrix": [[tn, fp], [fn, tp]],
+            }
+        )
+    return candidates
+
+
+def sweep_best_f1_threshold(margins: Sequence[float], labels: Sequence[int]) -> Dict[str, Any]:
+    _validate_inputs(margins, labels)
+
+    best: Dict[str, Any] | None = None
+    for current in _all_candidates(margins, labels):
         if best is None:
             best = current
             continue
@@ -110,4 +121,41 @@ def sweep_best_f1_threshold(margins: Sequence[float], labels: Sequence[int]) -> 
 
     if best is None:
         raise RuntimeError("failed to compute threshold")
+    return best
+
+
+def sweep_best_threshold_at_min_precision(
+    margins: Sequence[float],
+    labels: Sequence[int],
+    *,
+    min_precision: float,
+) -> Dict[str, Any]:
+    _validate_inputs(margins, labels)
+    if not (0.0 <= float(min_precision) <= 1.0):
+        raise ValueError("min_precision must be within [0, 1]")
+
+    feasible = [c for c in _all_candidates(margins, labels) if float(c["precision"]) >= float(min_precision)]
+    if not feasible:
+        raise ValueError(f"no threshold can satisfy min_precision >= {min_precision}")
+
+    best = feasible[0]
+    for current in feasible[1:]:
+        # Deterministic tie break for constrained objective:
+        # 1) higher recall, 2) higher F1, 3) higher precision, 4) smaller threshold.
+        if (
+            (current["recall"] > best["recall"])
+            or (current["recall"] == best["recall"] and current["f1"] > best["f1"])
+            or (
+                current["recall"] == best["recall"]
+                and current["f1"] == best["f1"]
+                and current["precision"] > best["precision"]
+            )
+            or (
+                current["recall"] == best["recall"]
+                and current["f1"] == best["f1"]
+                and current["precision"] == best["precision"]
+                and current["threshold"] < best["threshold"]
+            )
+        ):
+            best = current
     return best

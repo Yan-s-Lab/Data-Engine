@@ -8,7 +8,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from common.siglip2_margin_threshold import compute_margin, sweep_best_f1_threshold
+from common.siglip2_margin_threshold import (
+    compute_margin,
+    sweep_best_f1_threshold,
+    sweep_best_threshold_at_min_precision,
+)
 
 
 class Siglip2MarginThresholdTest(unittest.TestCase):
@@ -49,6 +53,17 @@ class Siglip2MarginThresholdTest(unittest.TestCase):
             sweep_best_f1_threshold([0.1], [1, 0])
         with self.assertRaises(ValueError):
             sweep_best_f1_threshold([0.1], [2])
+
+    def test_sweep_threshold_with_min_precision(self) -> None:
+        margins = [0.95, 0.90, 0.88, 0.87, 0.86, 0.10, 0.05, 0.01]
+        labels = [1, 1, 0, 1, 0, 0, 0, 0]
+        best = sweep_best_threshold_at_min_precision(margins, labels, min_precision=0.9)
+        self.assertAlmostEqual(best["threshold"], 0.90, places=6)
+        self.assertAlmostEqual(best["precision"], 1.0, places=6)
+        self.assertAlmostEqual(best["recall"], 2.0 / 3.0, places=6)
+
+        with self.assertRaises(ValueError):
+            sweep_best_threshold_at_min_precision(margins, labels, min_precision=1.1)
 
 
 if __name__ == "__main__":

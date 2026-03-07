@@ -21,3 +21,11 @@ python filter/evaluate_siglip2_margin_threshold.py \
   --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml \
   --top-k 3
 ```
+
+若希望控制误收，可加 precision 约束（例如 `precision>=0.9` 时召回最大）：
+```bash
+python filter/evaluate_siglip2_margin_threshold.py \
+  --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml \
+  --top-k 3 \
+  --min-precision 0.9
+```
