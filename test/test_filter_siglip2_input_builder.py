@@ -50,12 +50,10 @@ class FilterSiglip2InputBuilderTest(unittest.TestCase):
 
             rows = build_siglip2_filter_inputs_from_config(cfg)
             self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0]["generative_type"], "prompt")
-            self.assertEqual(rows[0]["guided_image"], "")
-            self.assertEqual(rows[0]["guided_prompt"], "a person standing")
+            self.assertEqual(rows[0]["sample_id"], "row_0000000")
             self.assertTrue(Path(rows[0]["image_path"]).is_absolute())
 
-    def test_image_guided_row_resolves_anchor_image(self) -> None:
+    def test_image_guided_row_is_treated_as_plain_input_row(self) -> None:
         with tempfile.TemporaryDirectory(prefix="filter_siglip2_input_") as td:
             root = Path(td)
             images_dir = root / "images"
@@ -64,9 +62,7 @@ class FilterSiglip2InputBuilderTest(unittest.TestCase):
             manifests_dir.mkdir(parents=True, exist_ok=True)
 
             synth_image = images_dir / "synth.png"
-            anchor_image = images_dir / "anchor.jpg"
             synth_image.write_text("", encoding="utf-8")
-            anchor_image.write_text("", encoding="utf-8")
 
             synth_manifest = manifests_dir / "synth_guided.jsonl"
             synth_manifest.write_text(
@@ -83,26 +79,12 @@ class FilterSiglip2InputBuilderTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            anchor_manifest = manifests_dir / "real_manifest.jsonl"
-            anchor_manifest.write_text(
-                json.dumps(
-                    {
-                        "sample_id": "real_001",
-                        "image_path": str(anchor_image),
-                    },
-                    ensure_ascii=False,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-
             cfg = root / "filter.json"
             cfg.write_text(
                 json.dumps(
                     {
                         "filter": {
                             "input_manifests": [str(synth_manifest)],
-                            "anchor_real_manifest": str(anchor_manifest),
                         }
                     },
                     ensure_ascii=False,
@@ -112,9 +94,7 @@ class FilterSiglip2InputBuilderTest(unittest.TestCase):
 
             rows = build_siglip2_filter_inputs_from_config(cfg)
             self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0]["generative_type"], "image_guided")
-            self.assertEqual(rows[0]["guided_prompt"], "a full body photo")
-            self.assertEqual(rows[0]["guided_image"], str(anchor_image.resolve()))
+            self.assertEqual(rows[0]["sample_id"], "row_0000000")
             self.assertTrue(Path(rows[0]["image_path"]).is_absolute())
 
     def test_save_manifest_uses_config_output_path(self) -> None:

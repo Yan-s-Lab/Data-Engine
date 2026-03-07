@@ -112,6 +112,19 @@ python filter/run_filter.py \
   --config test/test-filters/configs/filter_compose.yaml
 ```
 
+## 5.1 Filter1 Prompt-Only 最小链路
+
+当只做 prompt 语义筛选时，推荐使用三步链路：
+
+1. 构建输入：
+   - `python filter/utils/build_siglip2_input_manifest.py --config <config>`
+   - 输出行最小字段：`sample_id`, `image_path`
+2. 构建阈值：
+   - `python filter/utils/evaluate_siglip2_margin_threshold.py --config <config>`
+3. 执行筛选：
+   - `python filter/filter_stages/filter1/main.py --config <config> --threshold-report <report>`
+   - `filter1_scores.jsonl` 最小字段：`sample_id`, `image_path`, `margin`, `threshold`, `decision`
+
 ## 6. 快速排查
 
 1. `guided_synth_count=0`

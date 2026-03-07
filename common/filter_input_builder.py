@@ -42,39 +42,8 @@ def _collect_input_manifest_paths(*, filter_cfg: Dict[str, Any], config_path: Pa
     return paths
 
 
-def _build_anchor_image_index(*, filter_cfg: Dict[str, Any], config_path: Path) -> Dict[str, str]:
-    anchor_manifest = str(filter_cfg.get("anchor_real_manifest", "")).strip()
-    if not anchor_manifest:
-        return {}
-
-    anchor_path = _resolve_path(anchor_manifest, base_dir=config_path.parent)
-    if not anchor_path.exists():
-        raise FileNotFoundError(f"anchor_real_manifest not found: {anchor_path}")
-
-    index: Dict[str, str] = {}
-    for row in read_jsonl(anchor_path):
-        sample_id = str(row.get("sample_id", "")).strip()
-        image_path = str(row.get("image_path", "")).strip()
-        if not sample_id or not image_path:
-            continue
-        index[sample_id] = str(_resolve_path(image_path, base_dir=anchor_path.parent))
-    return index
-
-
-def _normalize_generative_type(row: Dict[str, Any]) -> str:
-    guide_type = str(row.get("guide_type", "")).strip().lower()
-    if guide_type in {"prompt", "image_guided"}:
-        return guide_type
-
-    guide_id = str(row.get("guide_image_id", "")).strip()
-    if guide_id:
-        return "image_guided"
-    return "prompt"
-
-
 def build_siglip2_filter_inputs(*, filter_cfg: Dict[str, Any], config_path: Path) -> List[Dict[str, str]]:
     input_manifest_paths = _collect_input_manifest_paths(filter_cfg=filter_cfg, config_path=config_path)
-    anchor_image_index = _build_anchor_image_index(filter_cfg=filter_cfg, config_path=config_path)
 
     rows_out: List[Dict[str, str]] = []
 
@@ -82,30 +51,18 @@ def build_siglip2_filter_inputs(*, filter_cfg: Dict[str, Any], config_path: Path
         if not manifest_path.exists():
             raise FileNotFoundError(f"input_manifest not found: {manifest_path}")
 
-        for row in read_jsonl(manifest_path):
+        for row_index, row in enumerate(read_jsonl(manifest_path)):
             image_path = str(row.get("synthetic_image_path", "")).strip() or str(row.get("image_path", "")).strip()
             if not image_path:
                 raise ValueError(f"missing image path in manifest row: {manifest_path}")
-
-            generative_type = _normalize_generative_type(row)
-            guided_prompt = str(row.get("prompt_text", "")).strip()
-            guided_image = ""
-
-            if generative_type == "image_guided":
-                guide_id = str(row.get("guide_image_id", "")).strip() or str(row.get("anchor_real_sample_id", "")).strip()
-                if guide_id and guide_id in anchor_image_index:
-                    guided_image = anchor_image_index[guide_id]
-                else:
-                    guide_path = str(row.get("anchor_real_image_path", "")).strip() or str(row.get("guide_image_path", "")).strip()
-                    if guide_path:
-                        guided_image = str(_resolve_path(guide_path, base_dir=manifest_path.parent))
+            sample_id = str(row.get("sample_id", "")).strip()
+            if not sample_id:
+                sample_id = f"row_{row_index:07d}"
 
             rows_out.append(
                 {
+                    "sample_id": sample_id,
                     "image_path": str(_resolve_path(image_path, base_dir=manifest_path.parent)),
-                    "generative_type": generative_type,
-                    "guided_image": guided_image,
-                    "guided_prompt": guided_prompt,
                 }
             )
 

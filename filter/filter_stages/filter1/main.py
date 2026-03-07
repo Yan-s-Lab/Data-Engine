@@ -56,12 +56,9 @@ def _normalize_row(row: Dict[str, Any], *, row_index: int, base_dir: Path) -> Di
     sample_id = str(row.get("sample_id", "")).strip()
     if not sample_id:
         sample_id = f"row_{row_index:07d}"
-    generative_type = str(row.get("generative_type", row.get("guided_type", "prompt"))).strip().lower()
     return {
         "sample_id": sample_id,
         "image_path": str(_resolve_path(image_raw, base_dir=base_dir)),
-        "generative_type": generative_type or "prompt",
-        "raw": row,
     }
 
 
@@ -139,21 +136,9 @@ def _decide_rows(
 
     all_prompts = positive_prompts + negative_prompts
     score_rows: List[Dict[str, Any]] = []
-    counters = {"accept": 0, "reject": 0, "skipped_non_prompt": 0}
+    counters = {"accept": 0, "reject": 0}
 
     for row in rows:
-        if row["generative_type"] != "prompt":
-            out = {
-                "sample_id": row["sample_id"],
-                "image_path": row["image_path"],
-                "generative_type": row["generative_type"],
-                "decision": "skip_non_prompt",
-                "threshold": threshold,
-            }
-            score_rows.append(out)
-            counters["skipped_non_prompt"] += 1
-            continue
-
         logits = compute_siglip2_logits_for_image(
             model=model,
             processor=processor,
@@ -172,9 +157,6 @@ def _decide_rows(
             {
                 "sample_id": row["sample_id"],
                 "image_path": row["image_path"],
-                "generative_type": row["generative_type"],
-                "pos_score": float(stats["pos_score"]),
-                "neg_score": float(stats["neg_score"]),
                 "margin": margin,
                 "threshold": threshold,
                 "decision": decision,
@@ -272,7 +254,6 @@ def main() -> None:
         "input_row_count": len(rows),
         "accept": len(accept_rows),
         "reject": len(reject_rows),
-        "skipped_non_prompt": counters["skipped_non_prompt"],
     }
     write_json(output_dir / "report.json", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))

@@ -63,10 +63,9 @@ class Filter1MainTest(unittest.TestCase):
             image_path = root / "a.png"
             image_path.write_text("x", encoding="utf-8")
 
-            row = {"imagepath": str(image_path), "generative_type": "prompt"}
+            row = {"imagepath": str(image_path)}
             out = mod._normalize_row(row, row_index=7, base_dir=root)
             self.assertEqual(out["sample_id"], "row_0000007")
-            self.assertEqual(out["generative_type"], "prompt")
             self.assertEqual(out["image_path"], str(image_path))
 
     def test_resolve_output_dir_fallback_when_default_unwritable(self) -> None:
