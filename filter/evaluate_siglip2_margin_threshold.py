@@ -7,16 +7,13 @@ from pathlib import Path
 import sys
 from typing import Any, Dict, List
 
-import torch
-from PIL import Image
-from transformers import AutoModel, AutoProcessor
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from common.config_io import load_config, resolve_run_dir
 from common.manifest_io import write_json
+from common.siglip2_inference import compute_siglip2_logits_for_image, load_siglip2_runtime
 from common.siglip2_margin_threshold import (
     compute_margin,
     sweep_best_f1_threshold,
@@ -32,15 +29,6 @@ def _resolve_path(raw: str, *, base_dir: Path) -> Path:
     if candidate.exists():
         return candidate
     return (ROOT / path).resolve()
-
-
-def _resolve_device(device_cfg: str) -> str:
-    requested = str(device_cfg).strip().lower()
-    if requested in {"cpu", "cuda"}:
-        if requested == "cuda" and not torch.cuda.is_available():
-            return "cpu"
-        return requested
-    return "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def _load_labeled_rows(path: Path) -> List[Dict[str, Any]]:
@@ -63,21 +51,6 @@ def _load_labeled_rows(path: Path) -> List[Dict[str, Any]]:
             raise ValueError(f"invalid row at index {idx}: label must be accept/reject")
         out.append({"imagepath": imagepath, "label": label})
     return out
-
-
-def _run_model_logits(
-    *,
-    model: Any,
-    processor: Any,
-    image: Image.Image,
-    prompts: List[str],
-    device: str,
-) -> List[float]:
-    inputs = processor(text=prompts, images=image, padding="max_length", return_tensors="pt")
-    inputs = {k: v.to(device) for k, v in inputs.items()}
-    with torch.no_grad():
-        logits = model(**inputs).logits_per_image.float().cpu()[0]
-    return [float(v.item()) for v in logits]
 
 
 def main() -> None:
@@ -117,10 +90,7 @@ def main() -> None:
     rows = _load_labeled_rows(labeled_path)
 
     model_id = str(clip_cfg.get("model_id", "google/siglip2-so400m-patch16-naflex")).strip()
-    device = _resolve_device(str(clip_cfg.get("device", "auto")))
-
-    model = AutoModel.from_pretrained(model_id, dtype=torch.float32).to(device).eval()
-    processor = AutoProcessor.from_pretrained(model_id, use_fast=True)
+    model, processor, device = load_siglip2_runtime(model_id=model_id, device_cfg=str(clip_cfg.get("device", "auto")))
 
     all_prompts = positive_prompts + negative_prompts
     samples: List[Dict[str, Any]] = []
@@ -129,11 +99,10 @@ def main() -> None:
 
     for row in rows:
         image_path = _resolve_path(row["imagepath"], base_dir=labeled_path.parent)
-        image = Image.open(image_path).convert("RGB")
-        logits = _run_model_logits(
+        logits = compute_siglip2_logits_for_image(
             model=model,
             processor=processor,
-            image=image,
+            image_path=image_path,
             prompts=all_prompts,
             device=device,
         )

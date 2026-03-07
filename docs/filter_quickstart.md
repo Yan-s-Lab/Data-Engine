@@ -29,3 +29,11 @@ python filter/evaluate_siglip2_margin_threshold.py \
   --top-k 3 \
   --min-precision 0.9
 ```
+
+正式过滤（读取 `filter.input_manifests`，使用外部阈值）：
+```bash
+python filter/filter_stages/filter1/main.py \
+  --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml \
+  --threshold-report artifacts/tmp/siglip2_margin_threshold_report.json \
+  --top-k 3
+```
