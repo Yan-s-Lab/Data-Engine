@@ -1,10 +1,11 @@
 Current TODO entrypoints:
     - Generation stage refine checklist:
-      docs/design/generation_mvp_refine_todo.md
+      docs/design-notes/archive/generation_mvp_refine_todo.md
     - Current implementation facts:
       docs/state/data_engine_state.md
     - Methods-level architecture source of truth:
-      .temp/methods.tex
+      AGENTS.md currently names .temp/methods.tex, but that file is absent in this workspace.
+      The present methods draft reviewed in this session is docs/paper.tex.
 
 Working rule:
     - TODO only tracks actionable deltas against current implementation.

@@ -68,10 +68,29 @@ The summary table records:
 - Materialized in local artifacts during this session:
   - `real_train_anchor`
   - `real_test_holdout`
+  - filtered-synthetic `ai_dataset`
   - `real_plus_filtered_synth_dataset`
 - Not completed in this session:
   - raw synthetic annotation run
+  - `real_plus_raw_synth_dataset`
   - full five-group training
   - full shared-holdout evaluation
 
 The remaining items are runtime-heavy execution tasks rather than missing protocol/code support.
+
+## Current Artifact Counts
+- Generated synthetic pool:
+  - prompt-only: 300 images
+  - prompt+canny: 600 images
+- Filter cascade:
+  - Filter1 accepted 732 / 900 synthetic rows
+  - Filter2 accepted 647 / 732 rows, rejected 16, routed 69 to uncertain
+- Filtered AI annotation:
+  - 647 / 647 accepted images annotated by YOLO-pose
+  - train/val split: 518 / 129
+- Fair real split:
+  - train anchor: 1589 images
+  - anchor validation: 280 images
+  - shared holdout: 329 images
+- Real + filtered synthetic training set:
+  - 2107 train images = 1589 real + 518 filtered synthetic

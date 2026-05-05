@@ -14,16 +14,18 @@ DataLoader → real_manifest.jsonl                   DONE
 Control Generation → synth_manifest.jsonl           DONE
   ↓
 Filter1 (SigLIP2 margin) → filter1_scores.jsonl    DONE
-  + splits/{accept,reject,uncertain}.jsonl
+  + splits/{accept,reject}.jsonl
   ↓
 Filter2 (YOLO pose/ROI) → filter2_scores.jsonl     DONE
   + splits/filter2_{accept,reject,uncertain}.jsonl
   ↓
-Annotation (AI auto-label)                          TODO
+Annotation (AI auto-label)                          PARTIAL
+  + filtered-synth ai_dataset done; raw-synth branch not materialized
   ↓
-Training (YOLO11-seg, 3 conditions)                 TODO
+Training (YOLO11-pose, fair 5 ablations)            READY TO RUN
+  + legacy real-only / filtered-synth-only reports exist, but are not final fair results
   ↓
-Eval figures                                        TODO
+Shared-holdout eval + paper figures                 TODO
 ```
 
 ## Key Artifacts
@@ -34,8 +36,9 @@ Eval figures                                        TODO
 | Generation | `generate/synth_manifest.jsonl` |
 | Filter1 | `filter/filter1_scores.jsonl`, `filter/splits/accept.jsonl` |
 | Filter2 | `filter/filter2_scores.jsonl`, `filter/splits/filter2_accept.jsonl` |
-| Annotation | `label/ai_annotations.jsonl` (TODO) |
-| Training | `train_yolo/weights/best.pt` (TODO) |
+| Annotation | `body_pose_coco_annotation/label/ai_annotations_manifest.jsonl`, `body_pose_coco_annotation/label/ai_dataset/` |
+| Training | fair configs under `configs/coco_pose_2017__expansion/train/`; final five-group reports pending |
+| Eval | shared-holdout configs under `configs/coco_pose_2017__expansion/eval/`; reports pending |
 
 ## Next Steps
 
