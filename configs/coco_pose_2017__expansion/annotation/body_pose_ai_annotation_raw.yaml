@@ -1,15 +1,15 @@
 run:
-  run_id: body_pose_coco_annotation
+  run_id: body_pose_coco_annotation_raw
   artifacts_root: artifacts/runs/yk003/body_pose_coco
 
 annotation:
-  # Filtered synthetic pool after filter2_accept — main filtered-synth branch.
-  input_manifest: artifacts/runs/yk003/body_pose_coco/body_pose_coco_filter_2/filter/splits/filter2_accept.jsonl
+  # Raw synthetic pool before filtering — used for the raw-synth ablation branch.
+  input_manifest: artifacts/runs/yk003/body_pose_coco/body_pose_coco__prompt_canny/generate/synth_manifest.jsonl
   model: third_party/yolo26x-pose.pt
   device: "0"
   conf: 0.25
   iou: 0.45
-  vis_threshold: 0.5   # keypoint conf >= this → visibility=2 (visible)
+  vis_threshold: 0.5
   val_ratio: 0.2
   seed: 42
 

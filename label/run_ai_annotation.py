@@ -69,6 +69,26 @@ def split_ids(ids: List[str], val_ratio: float, seed: int) -> Tuple[List[str], L
     return shuffled[n_val:], shuffled[:n_val]  # train, val
 
 
+def resolve_manifest_image_path(row: Dict[str, Any]) -> Path:
+    for key in ("image_path", "synthetic_image_path", "imagepath", "path"):
+        raw_value = str(row.get(key, "")).strip()
+        if not raw_value:
+            continue
+        path = Path(raw_value)
+        if path.is_absolute():
+            return path
+        return ROOT / path
+    raise ValueError("manifest row is missing an image path field")
+
+
+def resolve_sample_id(row: Dict[str, Any], image_path: Path) -> str:
+    for key in ("sample_id", "synthetic_id", "image_id", "guide_image_id"):
+        value = str(row.get(key, "")).strip()
+        if value:
+            return value
+    return image_path.stem
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="AI pose annotation via YOLO-pose inference")
     parser.add_argument("--config", required=True)
@@ -102,7 +122,7 @@ def main() -> None:
     skipped = 0
 
     for row in rows:
-        img_path = Path(str(row["image_path"]))
+        img_path = resolve_manifest_image_path(row)
         if not img_path.exists():
             skipped += 1
             continue
@@ -135,9 +155,10 @@ def main() -> None:
 
         label_txt = label_dir / f"{img_path.stem}.txt"
         label_txt.write_text("\n".join(label_lines) + "\n", encoding="utf-8")
+        sample_id = resolve_sample_id(row, img_path)
 
         annotated.append({
-            "sample_id": row.get("sample_id", img_path.stem),
+            "sample_id": sample_id,
             "image_path": str(img_path),
             "label_path": str(label_txt),
             "n_persons": len(label_lines),
@@ -186,6 +207,7 @@ def main() -> None:
         "skipped": skipped,
         "train_samples": len(train_ids),
         "val_samples": len(val_ids),
+        "dataset_root": str(out_dir),
         "dataset_yaml": str(dataset_yaml_path),
         "manifest": str(manifest_path),
     }
