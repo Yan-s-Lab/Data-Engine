@@ -3,9 +3,9 @@ run:
   artifacts_root: artifacts/runs/yk003/body_pose_coco
 
 build_mixed:
-  output_name: real_plus_filtered_synth_dataset
+  output_name: real_plus_raw_synth_dataset
   real_train_dataset: artifacts/runs/yk003/body_pose_coco/body_pose_coco_real/label/real_train_anchor
   shared_eval_dataset: artifacts/runs/yk003/body_pose_coco/body_pose_coco_real/label/real_test_holdout
-  synth_train_dataset: artifacts/runs/yk003/body_pose_coco/body_pose_coco_annotation/label/ai_dataset
+  synth_train_dataset: artifacts/runs/yk003/body_pose_coco/body_pose_coco_annotation_raw/label/ai_dataset
 
-# Output: artifacts/runs/yk003/body_pose_coco/body_pose_coco_train_sets/label/real_plus_filtered_synth_dataset/
+# Output: artifacts/runs/yk003/body_pose_coco/body_pose_coco_train_sets/label/real_plus_raw_synth_dataset/
