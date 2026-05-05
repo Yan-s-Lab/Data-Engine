@@ -12,10 +12,11 @@
 | Control Generation (ComfyUI) | DONE | `synth/run_generate.py` |
 | Filter1 — SigLIP2 semantic margin | DONE | `filter/filter_stages/filter1/main.py` |
 | Filter2 — YOLO pose/ROI gate | DONE | `filter/filter_stages/filter2/main.py` |
-| Annotation — AI auto-label (YOLO pose) | **TODO** | `label/` |
-| Dataset YAML — train/val split | **TODO** | manual |
-| Training — YOLO11-seg (3 conditions) | **TODO** | `train/run_yolo11_seg.py` |
-| Eval figures — mAP / visual comparison | **TODO** | `eval/` |
+| Annotation — AI auto-label (YOLO pose) | **READY** | `label/run_ai_annotation.py` |
+| Real data prep — COCO val2017 → YOLO-pose | **TODO** | `label/build_coco_yolo_pose.py` |
+| Mixed dataset — merge real + synth | **TODO** | `label/build_mixed_dataset.py` |
+| Training — YOLO11-pose (3 conditions) | **TODO** | `train/run_yolo11_pose.py` |
+| Eval figures — mAP / OKS / visual | **TODO** | `eval/run_yolo11_pose_eval.py` |
 
 ---
 

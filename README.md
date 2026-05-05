@@ -63,9 +63,33 @@ python filter/filter_stages/filter2/main.py \
   --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline_filter2.yaml
 ```
 
-**6. Training — YOLO11-seg**
+**6. AI Annotation — YOLO-pose on filter2_accept → keypoint labels**
 ```bash
-python train/run_yolo11_seg.py --config <your-train-config.yaml>
+python label/run_ai_annotation.py \
+  --config configs/coco_pose_2017__expansion/annotation/body_pose_ai_annotation.yaml
+```
+
+**7. Real data — convert COCO val2017 → YOLO-pose layout**
+```bash
+# Download first: val2017.zip + annotations_trainval2017.zip → artifacts/datasets/coco_val2017/
+python label/build_coco_yolo_pose.py \
+  --config configs/coco_pose_2017__expansion/train/body_pose_real_only_prep.yaml
+```
+
+**8. Mixed dataset — merge real + synth**
+```bash
+python label/build_mixed_dataset.py \
+  --config configs/coco_pose_2017__expansion/train/body_pose_mixed_prep.yaml
+```
+
+**9. Training — YOLO11-pose (run once per condition)**
+```bash
+# Condition B: synth-only
+python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_synth_only.yaml
+# Condition A: real-only
+python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_real_only.yaml
+# Condition C: mixed (main claim)
+python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_mixed.yaml
 ```
 
 ---

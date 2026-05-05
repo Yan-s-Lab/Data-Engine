@@ -1,0 +1,9 @@
+run:
+  run_id: body_pose_coco_mixed
+  artifacts_root: artifacts/runs/yk003/body_pose_coco
+
+build_mixed:
+  real_dataset: artifacts/runs/yk003/body_pose_coco/body_pose_coco_real/label/real_dataset
+  synth_dataset: artifacts/runs/yk003/body_pose_coco/body_pose_coco_annotation/label/ai_dataset
+
+# Output: artifacts/runs/yk003/body_pose_coco/body_pose_coco_mixed/label/mixed_dataset/

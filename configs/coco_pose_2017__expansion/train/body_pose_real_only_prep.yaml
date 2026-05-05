@@ -1,0 +1,15 @@
+run:
+  run_id: body_pose_coco_real
+  artifacts_root: artifacts/runs/yk003/body_pose_coco
+
+coco_to_yolo_pose:
+  # COCO val2017 — download with:
+  #   wget http://images.cocodataset.org/zips/val2017.zip
+  #   wget http://images.cocodataset.org/annotations/annotations_trainval2017.zip
+  annotation_json: artifacts/datasets/coco_val2017/annotations/person_keypoints_val2017.json
+  images_dir: artifacts/datasets/coco_val2017/images/val2017
+  val_ratio: 0.15
+  seed: 42
+  min_keypoints: 5   # skip near-invisible / heavily occluded persons
+
+# Output: artifacts/runs/yk003/body_pose_coco/body_pose_coco_real/label/real_dataset/
