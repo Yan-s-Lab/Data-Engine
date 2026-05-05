@@ -1,0 +1,13 @@
+run:
+  run_id: body_pose_coco_E_real_plus_filtered_synth
+  artifacts_root: artifacts/runs/yk003/body_pose_coco
+
+train_yolo:
+  dataset_yaml: artifacts/runs/yk003/body_pose_coco/body_pose_coco_train_sets/label/real_plus_filtered_synth_dataset/dataset.yaml
+  model: yolo11s-pose.pt
+  epochs: 100
+  imgsz: 640
+  batch: 16
+  device: "0"
+  workers: 4
+  patience: 30
