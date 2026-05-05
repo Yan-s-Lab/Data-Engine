@@ -5,16 +5,20 @@
 - Control generation (ComfyUI): `synth/run_generate.py`
 - Filter1 (SigLIP2 semantic margin): `filter/filter_stages/filter1/main.py`
 - Filter2 (YOLO pose/ROI gate): `filter/filter_stages/filter2/main.py`
-- Label Studio push/pull: `label/label_studio_{push,pull}.py`
-- Label→YOLO-seg converter: `label/label_studio_to_yolo_seg.py`
-- YOLO11-seg trainer: `train/run_yolo11_seg.py`
+- AI annotation for pose labels: `label/run_ai_annotation.py`
+- Fair real split builder: `label/build_coco_yolo_pose.py`
+- Fair mixed dataset builder: `label/build_mixed_dataset.py`
+- YOLO11-pose trainer/eval: `train/run_yolo11_pose.py`, `eval/run_yolo11_pose_eval.py`
+- Five-group fair ablation configs under `configs/coco_pose_2017__expansion/{train,eval}/`
+- Pose ablation aggregation: `eval/aggregate_pose_ablation_results.py`
 
 ## Not Yet Run / TODO
-- AI annotation on filter2_accept (script: `label/run_ai_annotation.py` — not yet written)
-- Dataset YAML construction (train/val split for 3 conditions)
-- Training runs (real-only / synth-only / mixed)
-- Eval figures for paper
+- Raw synthetic annotation run on pre-filter synth manifest
+- Full five-group training runs on fair protocol datasets
+- Shared-holdout eval runs for all five groups
+- Final paper figures / summary table export
 
 ## See Also
 - [ROADMAP.md](../../ROADMAP.md) — ordered next steps
 - [docs/data_flow.md](../data_flow.md) — artifact chain
+- [docs/body_pose_fair_experiment.md](../body_pose_fair_experiment.md) — fair protocol definition

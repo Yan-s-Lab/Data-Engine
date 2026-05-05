@@ -63,33 +63,59 @@ python filter/filter_stages/filter2/main.py \
   --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline_filter2.yaml
 ```
 
-**6. AI Annotation — YOLO-pose on filter2_accept → keypoint labels**
+**6. AI Annotation — build filtered and raw synthetic pose datasets**
 ```bash
+# Filtered synth branch (main paper branch)
 python label/run_ai_annotation.py \
   --config configs/coco_pose_2017__expansion/annotation/body_pose_ai_annotation.yaml
+
+# Raw synth branch (pre-filter ablation)
+python label/run_ai_annotation.py \
+  --config configs/coco_pose_2017__expansion/annotation/body_pose_ai_annotation_raw.yaml
 ```
 
-**7. Real data — convert COCO val2017 → YOLO-pose layout**
+**7. Real data — freeze fair train anchor + shared real holdout**
 ```bash
 # Download first: val2017.zip + annotations_trainval2017.zip → artifacts/datasets/coco_val2017/
 python label/build_coco_yolo_pose.py \
   --config configs/coco_pose_2017__expansion/train/body_pose_real_only_prep.yaml
 ```
 
-**8. Mixed dataset — merge real + synth**
+**8. Mixed datasets — merge train splits, reuse shared real holdout**
 ```bash
+# Real + filtered synth
 python label/build_mixed_dataset.py \
   --config configs/coco_pose_2017__expansion/train/body_pose_mixed_prep.yaml
+
+# Real + raw synth
+python label/build_mixed_dataset.py \
+  --config configs/coco_pose_2017__expansion/train/body_pose_mixed_raw_prep.yaml
 ```
 
-**9. Training — YOLO11-pose (run once per condition)**
+**9. Training — YOLO11-pose fair ablations**
 ```bash
-# Condition B: synth-only
-python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_synth_only.yaml
-# Condition A: real-only
-python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_real_only.yaml
-# Condition C: mixed (main claim)
-python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_mixed.yaml
+# A: real-only
+python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_A_real_only.yaml
+# B: raw synth-only
+python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_B_raw_synth_only.yaml
+# C: filtered synth-only
+python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_C_filtered_synth_only.yaml
+# D: real + raw synth
+python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_D_real_plus_raw_synth.yaml
+# E: real + filtered synth
+python train/run_yolo11_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_E_real_plus_filtered_synth.yaml
+```
+
+**10. Eval — one shared real holdout for every group**
+```bash
+python eval/run_yolo11_pose_eval.py --config configs/coco_pose_2017__expansion/eval/body_pose_A_real_only_eval.yaml
+python eval/run_yolo11_pose_eval.py --config configs/coco_pose_2017__expansion/eval/body_pose_B_raw_synth_only_eval.yaml
+python eval/run_yolo11_pose_eval.py --config configs/coco_pose_2017__expansion/eval/body_pose_C_filtered_synth_only_eval.yaml
+python eval/run_yolo11_pose_eval.py --config configs/coco_pose_2017__expansion/eval/body_pose_D_real_plus_raw_synth_eval.yaml
+python eval/run_yolo11_pose_eval.py --config configs/coco_pose_2017__expansion/eval/body_pose_E_real_plus_filtered_synth_eval.yaml
+
+python eval/aggregate_pose_ablation_results.py \
+  --config configs/coco_pose_2017__expansion/eval/body_pose_ablation_summary.yaml
 ```
 
 ---
@@ -112,7 +138,7 @@ dataloader/real_manifest.jsonl
     → filter/filter1_scores.jsonl + splits/{accept,reject,uncertain}.jsonl
       → filter/splits/filter2_{accept,reject,uncertain}.jsonl
         → annotation labels
-          → train/val dataset YAML → YOLO11-seg model
+          → fair train datasets + shared real holdout → YOLO11-pose model
 ```
 
 ---
@@ -133,6 +159,7 @@ For filter-only runs, set `pipeline.steps: [filter]` in your config.
 ## Docs
 
 - [ROADMAP.md](ROADMAP.md) — paper checklist and next steps
+- [docs/body_pose_fair_experiment.md](docs/body_pose_fair_experiment.md) — fair experiment protocol
 - [docs/data_flow.md](docs/data_flow.md) — pipeline state and artifact flow
 - [docs/architecture/style.md](docs/architecture/style.md) — code style rules
 - [AGENTS.md](AGENTS.md) — agent execution constraints
