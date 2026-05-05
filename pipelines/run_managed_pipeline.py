@@ -121,14 +121,14 @@ class ManagedPipeline:
             if stage not in STAGE_TO_SCRIPT:
                 raise ValueError(f"unsupported stage in pipeline.steps: {stage}")
 
-            if resume and stage_output_ok(stage, run_dir):
+            if resume and stage_output_ok(stage, run_dir, runtime_cfg):
                 print(f"[managed-pipeline] skip completed stage: {stage}")
                 skipped_steps.append(stage)
                 continue
 
             script = STAGE_TO_SCRIPT[stage]
             self._run_stage([python_bin, script, "--config", str(runtime_cfg_path)])
-            if not stage_output_ok(stage, run_dir):
+            if not stage_output_ok(stage, run_dir, runtime_cfg):
                 raise RuntimeError(f"stage `{stage}` completed but expected artifact is missing")
             completed_steps.append(stage)
 

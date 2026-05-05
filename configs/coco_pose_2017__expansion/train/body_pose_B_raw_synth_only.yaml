@@ -11,3 +11,7 @@ train_yolo:
   device: "0"
   workers: 4
   patience: 30
+
+pipeline:
+  steps: [train_yolo_pose]
+  resume_from_artifacts: true

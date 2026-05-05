@@ -24,3 +24,7 @@ aggregate_pose_ablation:
       label: real_plus_filtered_synth
       train_report: artifacts/runs/yk003/body_pose_coco/body_pose_coco_E_real_plus_filtered_synth/train_yolo_pose/report.json
       eval_report: artifacts/runs/yk003/body_pose_coco/body_pose_coco_E_real_plus_filtered_synth_eval/eval_yolo_pose/report.json
+
+pipeline:
+  steps: [aggregate_pose_ablation]
+  resume_from_artifacts: true

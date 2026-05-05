@@ -1,12 +1,22 @@
 from __future__ import annotations
 
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+from common.config_io import load_config
 from pipelines.run_serial_plan import _run_post_action, _should_run_post_action, parse_plan
 
 
 class SerialPlanPostActionsTest(unittest.TestCase):
+    def test_parse_fair_pose_ablation_plan(self) -> None:
+        plan = load_config(Path("configs/coco_pose_2017__expansion/pipeline_fair_pose_ablation.yaml"))
+        queue, continue_on_error = parse_plan(plan)
+        self.assertFalse(continue_on_error)
+        self.assertEqual(len(queue), 16)
+        self.assertEqual(queue[0].task_name, "real_anchor_and_holdout")
+        self.assertEqual(queue[-1].task_name, "pose_ablation_summary")
+
     def test_parse_plan_merges_global_stage_task_post_actions(self) -> None:
         plan = {
             "serial_plan": {

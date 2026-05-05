@@ -31,6 +31,12 @@ STAGE_TO_SCRIPT = {
     "filter": "filter/filter_stages/filter1/main.py",
     "train": "train/run_train.py",
     "eval": "eval/run_eval.py",
+    "coco_to_yolo_pose": "label/build_coco_yolo_pose.py",
+    "annotation": "label/run_ai_annotation.py",
+    "build_mixed": "label/build_mixed_dataset.py",
+    "train_yolo_pose": "train/run_yolo11_pose.py",
+    "eval_yolo_pose": "eval/run_yolo11_pose_eval.py",
+    "aggregate_pose_ablation": "eval/aggregate_pose_ablation_results.py",
 }
 
 
@@ -65,7 +71,16 @@ def build_runtime_config(config: Dict[str, Any]) -> Dict[str, Any]:
     return cfg
 
 
-def stage_output_ok(stage: str, run_dir: Path) -> bool:
+def stage_output_ok(stage: str, run_dir: Path, config: Dict[str, Any] | None = None) -> bool:
+    config = config or {}
+    if stage == "build_mixed":
+        mix_cfg = config.get("build_mixed", {})
+        output_name = str(mix_cfg.get("output_name", "mixed_dataset")).strip() or "mixed_dataset"
+        return (
+            (run_dir / "label" / output_name / "report.json").exists()
+            and (run_dir / "label" / output_name / "dataset.yaml").exists()
+        )
+
     # 每个阶段必须产生的关键工件；用于最小正确性校验
     expected = {
         "dataloader": run_dir / "dataloader" / "real_manifest.jsonl",
@@ -73,6 +88,11 @@ def stage_output_ok(stage: str, run_dir: Path) -> bool:
         "filter": run_dir / "filter" / "splits" / "accept.jsonl",
         "train": run_dir / "train" / "model_stub.json",
         "eval": run_dir / "eval" / "policy_feedback.json",
+        "coco_to_yolo_pose": run_dir / "label" / "real_split_report.json",
+        "annotation": run_dir / "label" / "ai_annotation_report.json",
+        "train_yolo_pose": run_dir / "train_yolo_pose" / "report.json",
+        "eval_yolo_pose": run_dir / "eval_yolo_pose" / "report.json",
+        "aggregate_pose_ablation": run_dir / "pose_ablation_summary" / "summary.json",
     }[stage]
     # 只要关键工件存在，即认为该阶段输出通过
     return expected.exists()
@@ -123,7 +143,7 @@ def main() -> None:
         # 调用阶段脚本，统一传入 runtime_config.json
         run([args.python_bin, script, "--config", str(runtime_cfg_path)])
         # 阶段执行后检查关键输出工件是否存在
-        if not stage_output_ok(stage, run_dir):
+        if not stage_output_ok(stage, run_dir, runtime_cfg):
             raise RuntimeError(f"stage `{stage}` completed but expected artifact is missing")
 
     # 所有阶段成功后的摘要信息

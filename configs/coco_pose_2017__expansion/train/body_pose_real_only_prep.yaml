@@ -15,6 +15,10 @@ coco_to_yolo_pose:
   seed: 42
   min_keypoints: 5   # skip near-invisible / heavily occluded persons
 
+pipeline:
+  steps: [coco_to_yolo_pose]
+  resume_from_artifacts: true
+
 # Output:
 #   artifacts/runs/yk003/body_pose_coco/body_pose_coco_real/label/real_train_anchor/
 #   artifacts/runs/yk003/body_pose_coco/body_pose_coco_real/label/real_test_holdout/

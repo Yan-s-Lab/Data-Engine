@@ -8,4 +8,8 @@ build_mixed:
   shared_eval_dataset: artifacts/runs/yk003/body_pose_coco/body_pose_coco_real/label/real_test_holdout
   synth_train_dataset: artifacts/runs/yk003/body_pose_coco/body_pose_coco_annotation/label/ai_dataset
 
+pipeline:
+  steps: [build_mixed]
+  resume_from_artifacts: true
+
 # Output: artifacts/runs/yk003/body_pose_coco/body_pose_coco_train_sets/label/real_plus_filtered_synth_dataset/

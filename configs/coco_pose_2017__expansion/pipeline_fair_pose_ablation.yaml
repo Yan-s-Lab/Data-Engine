@@ -1,0 +1,46 @@
+serial_plan:
+  continue_on_error: false
+  stages:
+    - name: materialize_datasets
+      tasks:
+        - name: real_anchor_and_holdout
+          config: configs/coco_pose_2017__expansion/train/body_pose_real_only_prep.yaml
+        - name: filtered_synth_annotation
+          config: configs/coco_pose_2017__expansion/annotation/body_pose_ai_annotation.yaml
+        - name: raw_synth_annotation
+          config: configs/coco_pose_2017__expansion/annotation/body_pose_ai_annotation_raw.yaml
+        - name: real_plus_filtered_synth_dataset
+          config: configs/coco_pose_2017__expansion/train/body_pose_mixed_prep.yaml
+        - name: real_plus_raw_synth_dataset
+          config: configs/coco_pose_2017__expansion/train/body_pose_mixed_raw_prep.yaml
+
+    - name: train_ablation_groups
+      tasks:
+        - name: A_real_only
+          config: configs/coco_pose_2017__expansion/train/body_pose_A_real_only.yaml
+        - name: B_raw_synth_only
+          config: configs/coco_pose_2017__expansion/train/body_pose_B_raw_synth_only.yaml
+        - name: C_filtered_synth_only
+          config: configs/coco_pose_2017__expansion/train/body_pose_C_filtered_synth_only.yaml
+        - name: D_real_plus_raw_synth
+          config: configs/coco_pose_2017__expansion/train/body_pose_D_real_plus_raw_synth.yaml
+        - name: E_real_plus_filtered_synth
+          config: configs/coco_pose_2017__expansion/train/body_pose_E_real_plus_filtered_synth.yaml
+
+    - name: eval_shared_holdout
+      tasks:
+        - name: A_real_only_eval
+          config: configs/coco_pose_2017__expansion/eval/body_pose_A_real_only_eval.yaml
+        - name: B_raw_synth_only_eval
+          config: configs/coco_pose_2017__expansion/eval/body_pose_B_raw_synth_only_eval.yaml
+        - name: C_filtered_synth_only_eval
+          config: configs/coco_pose_2017__expansion/eval/body_pose_C_filtered_synth_only_eval.yaml
+        - name: D_real_plus_raw_synth_eval
+          config: configs/coco_pose_2017__expansion/eval/body_pose_D_real_plus_raw_synth_eval.yaml
+        - name: E_real_plus_filtered_synth_eval
+          config: configs/coco_pose_2017__expansion/eval/body_pose_E_real_plus_filtered_synth_eval.yaml
+
+    - name: aggregate_results
+      tasks:
+        - name: pose_ablation_summary
+          config: configs/coco_pose_2017__expansion/eval/body_pose_ablation_summary.yaml

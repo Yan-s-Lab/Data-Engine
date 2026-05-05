@@ -11,6 +11,8 @@
 - YOLO11-pose trainer/eval: `train/run_yolo11_pose.py`, `eval/run_yolo11_pose_eval.py`
 - Five-group fair ablation configs under `configs/coco_pose_2017__expansion/{train,eval}/`
 - Pose ablation aggregation: `eval/aggregate_pose_ablation_results.py`
+- Fair pose serial experiment plan: `configs/coco_pose_2017__expansion/pipeline_fair_pose_ablation.yaml`
+- One-command fair experiment wrapper: `scripts/run_body_pose_fair_experiment.sh`
 
 ## Materialized Artifacts
 - Generation:

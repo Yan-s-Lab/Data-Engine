@@ -6,3 +6,7 @@ eval_yolo:
   dataset_yaml: artifacts/runs/yk003/body_pose_coco/body_pose_coco_real/label/real_test_holdout/dataset.yaml
   checkpoint: runs/pose/artifacts/runs/yk003/body_pose_coco/body_pose_coco_B_raw_synth_only/train_yolo_pose/exp/weights/best.pt
   split: val
+
+pipeline:
+  steps: [eval_yolo_pose]
+  resume_from_artifacts: true

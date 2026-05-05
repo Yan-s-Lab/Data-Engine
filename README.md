@@ -9,6 +9,14 @@ dataloader(norm) → control generation → filter1(SigLIP2) → filter2(YOLO po
 
 See [ROADMAP.md](ROADMAP.md) for current progress and next steps.
 
+For the fair pose ablation experiment, the one-command entry is:
+```bash
+./scripts/run_body_pose_fair_experiment.sh
+```
+
+The script runs the config-driven serial plan at
+`configs/coco_pose_2017__expansion/pipeline_fair_pose_ablation.yaml`.
+
 ---
 
 ## Setup

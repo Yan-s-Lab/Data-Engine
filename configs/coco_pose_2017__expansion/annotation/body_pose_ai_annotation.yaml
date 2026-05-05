@@ -13,6 +13,10 @@ annotation:
   val_ratio: 0.2
   seed: 42
 
+pipeline:
+  steps: [annotation]
+  resume_from_artifacts: true
+
 # Output (auto under run_dir/label/):
 #   ai_labels/          — raw .txt label files (YOLO-pose format)
 #   ai_dataset/         — train/val split layout + dataset.yaml
