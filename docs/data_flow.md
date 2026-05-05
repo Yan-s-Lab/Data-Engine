@@ -1,30 +1,48 @@
+# Data Flow — Current State
 
-# Data Flow (MVP)
+## Pipeline
 
-本文档用于快速说明 MVP 流程与当前落地状态。
+```
+dataloader(norm) → control generation → filter1(SigLIP2) → filter2(YOLO pose/ROI) → annotation → training
+```
 
-## 1. MVP 目标链路
+## Stage Status
 
-`dataloader(norm) -> control generation -> filter -> annotation <-> HITL -> training -> 产出`
+```
+DataLoader → real_manifest.jsonl                   DONE
+  ↓
+Control Generation → synth_manifest.jsonl           DONE
+  ↓
+Filter1 (SigLIP2 margin) → filter1_scores.jsonl    DONE
+  + splits/{accept,reject,uncertain}.jsonl
+  ↓
+Filter2 (YOLO pose/ROI) → filter2_scores.jsonl     DONE
+  + splits/filter2_{accept,reject,uncertain}.jsonl
+  ↓
+Annotation (AI auto-label)                          TODO
+  ↓
+Training (YOLO11-seg, 3 conditions)                 TODO
+  ↓
+Eval figures                                        TODO
+```
 
-## 2. 当前已稳定链路
+## Key Artifacts
 
-`dataloader -> generation -> filter(siglip2-margin)`
+| Stage | Output |
+|---|---|
+| DataLoader | `dataloader/real_manifest.jsonl` |
+| Generation | `generate/synth_manifest.jsonl` |
+| Filter1 | `filter/filter1_scores.jsonl`, `filter/splits/accept.jsonl` |
+| Filter2 | `filter/filter2_scores.jsonl`, `filter/splits/filter2_accept.jsonl` |
+| Annotation | `label/ai_annotations.jsonl` (TODO) |
+| Training | `train_yolo/weights/best.pt` (TODO) |
 
-说明：
-- `annotation / HITL / training` 仍在目标态，未并入当前默认主流程。
-- 运行细节与配置说明以主索引和 kernel 分文档为准。
+## Next Steps
 
-## 3. 文档入口
+See [ROADMAP.md](../ROADMAP.md).
 
-- 主索引：
-  - `docs/README_PIPELINE_ZH.md`
-- kernel 分文档：
-  - `docs/kernels/dataloader_norm.md`
-  - `docs/kernels/control_generation.md`
-- filter 入口脚本：
-  - `filter/utils/build_siglip2_input_manifest.py`
-  - `filter/utils/evaluate_siglip2_margin_threshold.py`
-  - `filter/filter_stages/filter1/main.py`
-- 事实状态：
-  - `docs/state/data_engine_state.md`
+## Docs Index
+
+- Run commands: [README.md](../README.md)
+- Code style: [docs/architecture/style.md](architecture/style.md)
+- Agent constraints: [AGENTS.md](../AGENTS.md)

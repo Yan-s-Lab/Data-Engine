@@ -1,124 +1,114 @@
-# CLI Rewrite Quickstart
+# Data Engine — COCO Body Pose
 
-This branch is the CLI-first rewrite scaffold.
+Closed-loop data pipeline for synthetic-first training data generation and filtering.
 
-## Prepare Phase (before any run scripts)
+**Pipeline:**
+```
+dataloader(norm) → control generation → filter1(SigLIP2) → filter2(YOLO pose/ROI) → annotation → training
+```
 
-1. Python environment (`>=3.10`, recommended: conda + pip):
+See [ROADMAP.md](ROADMAP.md) for current progress and next steps.
+
+---
+
+## Setup
+
 ```bash
 conda create -n dataengine python=3.10 -y
 conda activate dataengine
-pip install -U pip
 pip install -r requirements.txt
 ```
 
-Optional fallback (if you do not use conda):
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -U pip
-pip install -r requirements.txt
-```
-
-2. Runtime dependencies for generation (ComfyUI backend):
-- Docker + Docker Compose
-- NVIDIA driver + `nvidia-container-toolkit` (GPU mode)
-
-3. Start or verify ComfyUI service:
+Optional services (ComfyUI for generation, Label Studio for annotation):
 ```bash
 ./third_party/comfyui/comfyui_ctl.sh ensure
-./third_party/comfyui/comfyui_ctl.sh check
-```
-
-4. Start or verify Label Studio service:
-```bash
-cp third_party/label_studio/.env.example third_party/label_studio/.env
 ./third_party/label_studio/label_studio_ctl.sh ensure
-./third_party/label_studio/label_studio_ctl.sh check
 ```
 
-```bash
-# Give your current account permission for changging volume of docker: data/comfyui
-sudo chown -R "$USER":"$USER" data/comfyui
-```
+---
 
-```bash
-# Download example models, it can be quite of big. you can modify `.third_party/comfyui/models.yaml` based on yourself task.
-# For example, Comment out unused model combinations. 
-# For more details, please look at your ComfyUI UI Services: 127.0.0.1:8188
-./third_party/comfyui/download_models.sh  
+## Run Commands (canonical order)
 
-```
-
-5. Ensure dataset paths in your dataloader config exist before running:
-- `dataloader.image_dir`
-- `dataloader.label_dir` (if labels are required)
-
-## 中文手册（傻瓜式）
-- `docs/README_PIPELINE_ZH.md`
-
-## Kernel Docs
-- `docs/kernels/dataloader_norm.md`
-- `docs/kernels/control_generation.md`
-
-## Verified examples in `configs/examples`
-
-1. Normalize raw real data (DataLoader):
+**1. DataLoader — normalize real images**
 ```bash
 python ingest/run_dataloader.py \
   --config configs/examples/dataloader_norm_test_generation_yk002.yaml
 ```
 
-2. Generate synthetic data from normalized manifest (ComfyUI backend, prompt-only):
+**2. Control Generation — synthetic data via ComfyUI**
 ```bash
 python synth/run_generate.py \
   --config configs/examples/comfyui_generate_from_norm_yk001_prompt_only_managed.yaml
 ```
 
-3. Build SigLIP2 filter input manifest:
+**3. Filter — build input manifest**
 ```bash
 python filter/utils/build_siglip2_input_manifest.py \
   --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_input_construction.yaml
 ```
 
-4. Evaluate threshold on labeled accept/reject set:
+**4. Filter1 — SigLIP2 semantic margin**
 ```bash
+# Optional: evaluate threshold on labeled set first
 python filter/utils/evaluate_siglip2_margin_threshold.py \
   --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml
-```
 
-5. Run filter stage:
-```bash
 python filter/filter_stages/filter1/main.py \
   --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml
 ```
 
-Managed pipeline / Docker note:
-- If you run filter via `pipelines/run_managed_pipeline.py` or `deploy/pipeline/docker-compose.pipeline.yml`,
-  set `pipeline.steps: [filter]` in your config (or in serial plan task config), otherwise default steps include
-  `dataloader/generate/train/eval`.
-- Filter CLIP/SigLIP stages require `torch` and `transformers` in the runtime image. After pulling dependency changes,
-  rebuild pipeline image before rerun:
+**5. Filter2 — YOLO pose ROI gate**
 ```bash
-docker compose -f deploy/pipeline/docker-compose.pipeline.yml build --no-cache dataengine-pipeline
+python filter/filter_stages/filter2/main.py \
+  --config configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline_filter2.yaml
 ```
 
-## OpenPose (local external clone)
-
-`third_party/openpose/` is intentionally not tracked by this repository.
-If you need OpenPose tools, clone and build it locally:
-
+**6. Training — YOLO11-seg**
 ```bash
-git clone https://github.com/CMU-Perceptual-Computing-Lab/openpose.git third_party/openpose
-cd third_party/openpose
-mkdir -p build && cd build
-cmake ..
-make -j"$(nproc)"
-cd ../..
+python train/run_yolo11_seg.py --config <your-train-config.yaml>
 ```
 
-Then run helper script:
+---
+
+## Key Configs
+
+| Config | Purpose |
+|---|---|
+| `configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_input_construction.yaml` | Build filter input manifest |
+| `configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml` | Filter1 (SigLIP2) |
+| `configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline_filter2.yaml` | Filter2 (YOLO pose/ROI) |
+
+---
+
+## Artifact Chain
+
+```
+dataloader/real_manifest.jsonl
+  → generate/synth_manifest.jsonl
+    → filter/filter1_scores.jsonl + splits/{accept,reject,uncertain}.jsonl
+      → filter/splits/filter2_{accept,reject,uncertain}.jsonl
+        → annotation labels
+          → train/val dataset YAML → YOLO11-seg model
+```
+
+---
+
+## Docker Pipeline (optional)
 
 ```bash
-bash third_party/run_openpose_to_control.sh --image /abs/path/to/image.png
+cp deploy/pipeline/.env.example deploy/pipeline/.env
+# Edit .env: set PIPELINE_CONFIG or PIPELINE_SERIAL_PLAN
+docker compose --env-file deploy/pipeline/.env \
+  -f deploy/pipeline/docker-compose.pipeline.yml up --build
 ```
+
+For filter-only runs, set `pipeline.steps: [filter]` in your config.
+
+---
+
+## Docs
+
+- [ROADMAP.md](ROADMAP.md) — paper checklist and next steps
+- [docs/data_flow.md](docs/data_flow.md) — pipeline state and artifact flow
+- [docs/architecture/style.md](docs/architecture/style.md) — code style rules
+- [AGENTS.md](AGENTS.md) — agent execution constraints

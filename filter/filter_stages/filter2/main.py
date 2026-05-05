@@ -221,6 +221,9 @@ def _route_decision_from_reasons(reject_reasons: List[str], *, phase2: Dict[str,
         "bbox_too_large": _normalize_action(str(phase2["bbox_fail_action"])),
         "no_person_detected": _normalize_action(str(phase2["no_person_fail_action"])),
         "pose_missing": _normalize_action(str(phase2["pose_missing_action"])),
+        "image_read_error": "reject",
+        "pose_inference_error": "reject",
+        "detection_inference_error": "reject",
     }
     routed = [actions.get(reason, "reject") for reason in reject_reasons]
     return "reject" if "reject" in routed else "uncertain"
@@ -260,31 +263,90 @@ def main() -> None:
     score_rows: List[Dict[str, Any]] = []
     for row in rows:
         image_path = Path(row["image_path"])
-        with Image.open(image_path) as img:
-            width, height = img.size
+        try:
+            with Image.open(image_path) as img:
+                img.verify()
+            with Image.open(image_path) as img:
+                width, height = img.size
+        except Exception:
+            score_rows.append(
+                {
+                    "sample_id": row["sample_id"],
+                    "image_path": row["image_path"],
+                    "decision": "reject",
+                    "raw_gate_decision": "reject",
+                    "person_score": 0.0,
+                    "pose_score": 0.0,
+                    "bbox_area_ratio": 0.0,
+                    "roi_source": "none",
+                    "valid_keypoints": 0,
+                    "min_keypoints": int(phase2["min_keypoints"]),
+                    "keypoint_score_threshold": float(phase2["keypoint_score_threshold"]),
+                    "reject_reasons": ["image_read_error"],
+                }
+            )
+            continue
 
         pose_det = None
         person_det = None
         if pose_model is not None:
-            pose_det = _predict_best_person(
-                model=pose_model,
-                image_path=image_path,
-                device=phase2["device"],
-                conf=float(phase2["pose_conf"]),
-                iou=float(phase2["pose_iou"]),
-                with_keypoints=True,
-                min_person_score=float(phase2["min_person_score"]),
-            )
+            try:
+                pose_det = _predict_best_person(
+                    model=pose_model,
+                    image_path=image_path,
+                    device=phase2["device"],
+                    conf=float(phase2["pose_conf"]),
+                    iou=float(phase2["pose_iou"]),
+                    with_keypoints=True,
+                    min_person_score=float(phase2["min_person_score"]),
+                )
+            except Exception:
+                score_rows.append(
+                    {
+                        "sample_id": row["sample_id"],
+                        "image_path": row["image_path"],
+                        "decision": "reject",
+                        "raw_gate_decision": "reject",
+                        "person_score": 0.0,
+                        "pose_score": 0.0,
+                        "bbox_area_ratio": 0.0,
+                        "roi_source": "none",
+                        "valid_keypoints": 0,
+                        "min_keypoints": int(phase2["min_keypoints"]),
+                        "keypoint_score_threshold": float(phase2["keypoint_score_threshold"]),
+                        "reject_reasons": ["pose_inference_error"],
+                    }
+                )
+                continue
         if det_model is not None:
-            person_det = _predict_best_person(
-                model=det_model,
-                image_path=image_path,
-                device=phase2["device"],
-                conf=float(phase2["det_conf"]),
-                iou=float(phase2["det_iou"]),
-                with_keypoints=False,
-                min_person_score=float(phase2["min_person_score"]),
-            )
+            try:
+                person_det = _predict_best_person(
+                    model=det_model,
+                    image_path=image_path,
+                    device=phase2["device"],
+                    conf=float(phase2["det_conf"]),
+                    iou=float(phase2["det_iou"]),
+                    with_keypoints=False,
+                    min_person_score=float(phase2["min_person_score"]),
+                )
+            except Exception:
+                score_rows.append(
+                    {
+                        "sample_id": row["sample_id"],
+                        "image_path": row["image_path"],
+                        "decision": "reject",
+                        "raw_gate_decision": "reject",
+                        "person_score": 0.0,
+                        "pose_score": 0.0,
+                        "bbox_area_ratio": 0.0,
+                        "roi_source": "none",
+                        "valid_keypoints": 0,
+                        "min_keypoints": int(phase2["min_keypoints"]),
+                        "keypoint_score_threshold": float(phase2["keypoint_score_threshold"]),
+                        "reject_reasons": ["detection_inference_error"],
+                    }
+                )
+                continue
 
         gate = evaluate_pose_roi_gate(
             person_detection=person_det,

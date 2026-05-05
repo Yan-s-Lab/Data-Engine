@@ -10,3 +10,7 @@ third_party/runs/
 # /runs/
 **/.temp
 deploy/pipeline/.env
+# model weights — too large for git, download separately
+third_party/*.pt
+third_party/*.pth
+third_party/*.onnx
