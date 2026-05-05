@@ -32,6 +32,19 @@ class RunAiAnnotationHelpersTest(unittest.TestCase):
         )
         self.assertEqual(module.resolve_sample_id({}, image_path), "sample")
 
+    def test_record_prediction_error_is_compact(self) -> None:
+        errors = []
+        module.record_prediction_error(
+            errors,
+            sample_id="bad-sample",
+            image_path=Path("/tmp/bad.png"),
+            exc=ValueError("x" * 700),
+        )
+        self.assertEqual(errors[0]["sample_id"], "bad-sample")
+        self.assertEqual(errors[0]["image_path"], "/tmp/bad.png")
+        self.assertEqual(errors[0]["error_type"], "ValueError")
+        self.assertLessEqual(len(errors[0]["error"]), 500)
+
 
 if __name__ == "__main__":
     unittest.main()

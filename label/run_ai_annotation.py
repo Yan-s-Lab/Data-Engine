@@ -89,6 +89,23 @@ def resolve_sample_id(row: Dict[str, Any], image_path: Path) -> str:
     return image_path.stem
 
 
+def record_prediction_error(
+    errors: List[Dict[str, str]],
+    *,
+    sample_id: str,
+    image_path: Path,
+    exc: Exception,
+) -> None:
+    errors.append(
+        {
+            "sample_id": sample_id,
+            "image_path": str(image_path),
+            "error_type": type(exc).__name__,
+            "error": str(exc)[:500],
+        }
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="AI pose annotation via YOLO-pose inference")
     parser.add_argument("--config", required=True)
@@ -119,21 +136,33 @@ def main() -> None:
     model = YOLO(model_path)
 
     annotated: List[Dict[str, Any]] = []
+    prediction_errors: List[Dict[str, str]] = []
     skipped = 0
 
     for row in rows:
         img_path = resolve_manifest_image_path(row)
+        sample_id = resolve_sample_id(row, img_path)
         if not img_path.exists():
             skipped += 1
             continue
 
-        results = model.predict(
-            source=str(img_path),
-            conf=conf,
-            iou=iou,
-            device=device,
-            verbose=False,
-        )
+        try:
+            results = model.predict(
+                source=str(img_path),
+                conf=conf,
+                iou=iou,
+                device=device,
+                verbose=False,
+            )
+        except Exception as exc:
+            skipped += 1
+            record_prediction_error(
+                prediction_errors,
+                sample_id=sample_id,
+                image_path=img_path,
+                exc=exc,
+            )
+            continue
         result = results[0]
 
         if result.boxes is None or len(result.boxes) == 0:
@@ -155,7 +184,6 @@ def main() -> None:
 
         label_txt = label_dir / f"{img_path.stem}.txt"
         label_txt.write_text("\n".join(label_lines) + "\n", encoding="utf-8")
-        sample_id = resolve_sample_id(row, img_path)
 
         annotated.append({
             "sample_id": sample_id,
@@ -210,6 +238,7 @@ def main() -> None:
         "dataset_root": str(out_dir),
         "dataset_yaml": str(dataset_yaml_path),
         "manifest": str(manifest_path),
+        "prediction_errors": prediction_errors,
     }
     write_json(run_dir / "label" / "ai_annotation_report.json", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
