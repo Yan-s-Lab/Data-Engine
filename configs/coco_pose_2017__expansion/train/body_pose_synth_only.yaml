@@ -1,0 +1,14 @@
+run:
+  run_id: body_pose_coco_train_synth_only
+  artifacts_root: artifacts/runs/yk003/body_pose_coco
+
+train_yolo:
+  # Condition B: synth-only — filter2_accept images + AI pose annotation
+  dataset_yaml: artifacts/runs/yk003/body_pose_coco/body_pose_coco_annotation/label/ai_dataset/dataset.yaml
+  model: yolo11s-pose.pt
+  epochs: 100
+  imgsz: 640
+  batch: 16
+  device: "0"
+  workers: 4
+  patience: 30

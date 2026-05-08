@@ -1,0 +1,15 @@
+run:
+  run_id: body_pose_coco_train_real_only
+  artifacts_root: artifacts/runs/yk003/body_pose_coco
+
+train_yolo:
+  # Condition A: real-only — COCO val2017 images + ground truth keypoint labels
+  # Prerequisite: run label/build_coco_yolo_pose.py to convert COCO JSON → YOLO-pose layout
+  dataset_yaml: artifacts/runs/yk003/body_pose_coco/body_pose_coco_real/label/real_dataset/dataset.yaml
+  model: yolo11s-pose.pt
+  epochs: 100
+  imgsz: 640
+  batch: 16
+  device: "0"
+  workers: 4
+  patience: 30

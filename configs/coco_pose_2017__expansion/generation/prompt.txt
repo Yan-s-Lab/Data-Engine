@@ -1,0 +1,6 @@
+A highly realistic photograph capturing a natural real-life moment.
+Subject: a single {child|teenager|young adult|adult|elderly} {male|female} of {African|Caucasian|East Asian|South Asian|Middle Eastern|Hispanic|Native American} ethnicity with {short hair|long hair|curly hair|tied-back hair|bald}.
+Body visibility: the person is fully visible in the frame. The entire body including shoulders, elbows, hips, knees, and ankles is clearly visible with natural articulation. No heavy occlusion.
+Camera: {front view|side view|three-quarter view|slight low-angle view|slight high-angle view}, full-body framing with natural perspective, photographed using a DSLR camera, 50mm lens, f/5.6.
+Environment: {park path|hospital corridor|mountain trail|lakeside path|beach walkway|home living room|school hallway|supermarket aisle|small street shop|tree-lined street|urban street}.
+Focus: single person, clear human body pose, photorealistic anatomy, accurate body joints and limb geometry, realistic clothing folds, natural lighting, suitable for human pose estimation.

@@ -1,0 +1,29 @@
+run:
+  run_id: dataloader_norm_test
+  artifacts_root: artifacts/runs
+
+dataloader:
+  real_dir: artifacts/datasets/rawdatasets/real_arm_deltoid
+  image_dir: artifacts/datasets/rawdatasets/real_arm_deltoid/images
+  label_dir: artifacts/datasets/rawdatasets/real_arm_deltoid/labels
+  label_ext: .txt
+  require_labels: true
+  patterns:
+    - "*.png"
+    - "*.jpg"
+    - "*.jpeg"
+
+  output:
+    root_dir: artifacts/datasets/normalized/${services_id}_${task_name}
+    images_subdir: images
+    labels_subdir: labels
+
+  naming:
+    canonicalize_names: true
+    services_id: yk-001
+    task_name: arm_deltoid_muscle_seg
+    filename_template: ${services_id}_${task_name}_${seq_id_padded}
+    id_width: 4
+    id_start: 1
+    target_image_ext: .png
+    materialize_mode: copy

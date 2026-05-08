@@ -1,0 +1,26 @@
+services:
+  dataengine-pipeline:
+    build:
+      context: ../..
+      dockerfile: deploy/pipeline/Dockerfile
+    container_name: dataengine-pipeline
+    working_dir: /workspace
+    restart: 'no'
+    init: true
+    network_mode: host
+    stop_signal: SIGTERM
+    stop_grace_period: 2m
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PIPELINE_CONFIG: ${PIPELINE_CONFIG:-configs/examples/dataloader_norm_test.yaml}
+      PIPELINE_CONFIGS: ${PIPELINE_CONFIGS:-}
+      PIPELINE_CONFIG_LIST_FILE: ${PIPELINE_CONFIG_LIST_FILE:-}
+      PIPELINE_SERIAL_PLAN: ${PIPELINE_SERIAL_PLAN:-}
+      PIPELINE_RESUME: ${PIPELINE_RESUME:-true}
+      PIPELINE_CONTINUE_ON_ERROR: ${PIPELINE_CONTINUE_ON_ERROR:-false}
+      PIPELINE_LOG_DIR: ${PIPELINE_LOG_DIR:-/workspace/artifacts/logs}
+      PIPELINE_LOG_FILE: ${PIPELINE_LOG_FILE:-/workspace/artifacts/logs/managed_pipeline.log}
+    volumes:
+      - ../..:/workspace

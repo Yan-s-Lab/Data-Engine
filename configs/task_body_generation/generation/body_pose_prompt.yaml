@@ -1,0 +1,65 @@
+run:
+  # Output: 运行产物目录 = {artifacts_root}/{run_id}
+  run_id: body_pose__prompt
+  artifacts_root: artifacts/runs/yk003/body_pose_generation
+
+generate:
+  # Implement: 后端执行器
+  backend: comfyui
+
+  # Input:
+  # prompt-only 任务不依赖 real anchors，本配置故意不提供 real_manifest。
+  # 生成总量由 max_synth_samples 控制。
+  # For Pure Prompt Task, there is no need configuration for below field
+  # synth_per_real: 1
+  max_synth_samples: 200
+  seed_base: 88888888
+
+  manifest:
+    # Output schema: prompt-only 路由
+    guide_type: "prompt"
+
+  comfyui:
+    # Input: ComfyUI 服务地址 + API graph
+    base_url: http://127.0.0.1:8188
+    workflow: configs/examples/comfyui/flux_dev.json
+
+    # Implement: 调度/容错
+    wait_mode: history
+    non_blocking: true
+    max_inflight: 2
+    on_timeout: retry
+    timeout_retries: 2
+    client_id: yk003
+    timeout_sec: 1800
+    poll_interval_sec: 1.0
+
+    # Implement -> API graph 注入（会覆盖 workflow 中对应 node.inputs）
+    # - seed_node_id + seed_input_key: 写随机种子
+    seed_node_id: "25"
+    seed_input_key: noise_seed
+    prompt:
+      # - prompt.node_id + input_key: 写提示词文本
+      node_id: "6"
+      input_key: text
+      template_file: configs/task_body_generation/generation/prompt.txt
+      render_template: false
+    filename_prefix:
+      # - filename_prefix.node_id + input_key: 写 SaveImage 前缀
+      node_id: "9"
+      input_key: filename_prefix
+      template: "{client_id}__{run_id}__{sample_index}"
+
+    # Implement -> API graph 注入（真实控制 ComfyUI 单个 running 的产图数）
+    batch_size:
+      # 对应 workflow 中 EmptySD3LatentImage 节点
+      node_id: "27"
+      input_key: batch_size
+      value: 1
+
+    # Output 路径：直接引用 ComfyUI 挂载输出目录（不做下载/复制）
+    output_dir: data/comfyui/output
+
+pipeline:
+  steps: [generate]
+  resume_from_artifacts: true

@@ -1,0 +1,76 @@
+run:
+  # 本次生成任务的 run 标识；决定产物目录名。
+  run_id: yk001_prompt_only_demo_managed_20260225_rerun
+  # 统一产物根目录，最终输出到 {artifacts_root}/{run_id}/...
+  artifacts_root: artifacts/runs
+
+generate:
+  # 生成后端；当前脚本支持 basic / comfyui，这里走 ComfyUI。
+  backend: comfyui
+  # DataLoader 输出的真实样本清单（hard-code：硬编码路径，换 run_id/环境时需同步更新）。
+  real_manifest: artifacts/runs/dataloader_norm_test_generation_yk002/dataloader/real_manifest.jsonl
+  # 每个 real 样本要生成的 synthetic 数量。
+  synth_per_real: 1
+  # 全局生成上限（notice：demo 截断策略，当前最多只生成 20 张）。
+  max_synth_samples: 30
+  # 基础随机种子；实际每个样本 seed = seed_base + sample_index。
+  seed_base: 20260225
+  manifest:
+    # 手动指定本次任务类型：prompt 或 image_guided。
+    guide_type: "prompt"
+  comfyui:
+    # ComfyUI HTTP API 地址。
+    base_url: http://127.0.0.1:8188
+    # ComfyUI API prompt graph（不是 UI workflow）JSON 路径。
+    workflow: configs/examples/comfyui/flux_dev.json
+    # 等待完成模式：history=轮询 /history；websocket=订阅事件后回查 history。
+    wait_mode: history
+    # 是否启用非阻塞并发提交。
+    non_blocking: true
+    # 非阻塞模式下最多并发在途任务数。
+    max_inflight: 2
+    # 超时策略：fail/skip/retry。
+    on_timeout: retry
+    # on_timeout=retry 时的最大重试次数。
+    timeout_retries: 2
+    # 发送给 ComfyUI 的 client_id（用于 websocket 事件关联）。
+    client_id: yk001-prompt-only
+    # 工作流里要写入 seed 的节点 ID。
+    seed_node_id: "25"
+    # seed 节点的输入字段名。
+    seed_input_key: noise_seed
+    prompt:
+      # 正向提示词节点 ID（CLIPTextEncode）。
+      node_id: "6"
+      # 提示词写入字段名。
+      input_key: text
+      # 提示词模板文件路径。
+      template_file: configs/examples/arm_deltoid_template.txt
+      # false: 模板原样传给 ComfyUI 解析 {..}；true: 在 run_generate.py 内先做模板渲染。
+      render_template: false
+    filename_prefix:
+      # SaveImage 节点 ID。
+      node_id: "9"
+      # SaveImage 文件名前缀输入字段。
+      input_key: filename_prefix
+      # 用于补充命名上下文（services_id/task_name 等）的 dataloader 配置。
+      dataloader_config: configs/examples/dataloader_norm_test_generation_yk002.yaml
+      # 输出文件前缀模板（纯 prompt 模式不依赖 anchor image 名）。
+      template: "{run_id}_{sample_index}_{seed}"
+    batch_size:
+      # EmptySD3LatentImage 节点 ID。
+      node_id: "27"
+      # latent batch 大小字段名。
+      input_key: batch_size
+      # 单个 ComfyUI running 的真实产图数量。
+      value: 1
+    # 单任务超时秒数。
+    timeout_sec: 1800
+    # history 轮询间隔秒。
+    poll_interval_sec: 1.0
+    # ComfyUI output 类型文件在宿主机上的路径。
+    output_dir: data/comfyui/output
+
+pipeline:
+  steps: [generate]
+  resume_from_artifacts: true

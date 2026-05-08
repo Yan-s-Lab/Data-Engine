@@ -1,0 +1,28 @@
+run:
+  run_id: yk003_body_datanorm
+  artifacts_root: artifacts/runs/yk003/body_pose
+
+dataloader:
+  real_dir: artifacts/datasets/rawdatasets/real_arm_deltoid
+  image_dir: artifacts/datasets/rawdatasets/real_arm_deltoid/images
+  label_dir: artifacts/datasets/rawdatasets/real_arm_deltoid/labels
+  label_ext: .txt
+  require_labels: false
+  patterns:
+    - "*.png"
+    - "*.jpg"
+    - "*.jpeg"
+
+  naming:
+    canonicalize_names: true
+    services_id: yk003
+    task_name: body_pose
+    filename_template: ${services_id}__${task_name}__${seq_id_padded}
+    id_width: 4
+    id_start: 1
+    target_image_ext: .png
+    materialize_mode: copy
+
+pipeline:
+  steps: [dataloader]
+  resume_from_artifacts: true

@@ -1,0 +1,34 @@
+serial_plan:
+  # 串行版 v1：所有 stage / task 按顺序执行
+  continue_on_error: false
+  # 每个 task 执行后做 ComfyUI 状态守护，避免显存常驻影响后续 stage（filter/train）。
+  post_actions:
+    - type: comfyui.queue_empty_check
+      on: always
+      timeout_sec: 10
+      params:
+        base_url: http://127.0.0.1:8188
+    - type: comfyui.free_memory
+      on: always
+      timeout_sec: 15
+      params:
+        base_url: http://127.0.0.1:8188
+        unload_models: true
+        free_memory: true
+  stages:
+    # - name: dataloader
+    #   tasks:
+    #     - name: dataloader_norm
+    #       config: configs/coco_pose_2017__expansion/dataloader_norm/body_pose_coco_norm.yaml
+
+    # - name: generation
+    #   tasks:
+    #     - name: prompt_only
+    #       config: configs/coco_pose_2017__expansion/generation/body_pose_coco__prompt.yaml
+    #     - name: prompt_canny
+    #       config: configs/coco_pose_2017__expansion/generation/body_pose_coco__prompt_canny.yaml
+
+    - name: filter
+      tasks:
+        - name: phase1
+          config: configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml

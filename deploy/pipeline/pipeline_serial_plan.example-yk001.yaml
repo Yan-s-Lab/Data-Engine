@@ -1,0 +1,15 @@
+serial_plan:
+  # 串行版 v1：所有 stage / task 按顺序执行
+  continue_on_error: false
+  stages:
+    - name: dataloader
+      tasks:
+        - name: dataloader_norm
+          config: configs/examples/dataloader_norm_test_generation_yk001_managed.yaml
+
+    - name: generation
+      tasks:
+        - name: prompt_only
+          config: configs/examples/comfyui_generate_from_norm_yk001_prompt_only_managed.yaml
+        - name: prompt_canny
+          config: configs/examples/comfyui_generate_from_norm_yk001_prompt_canny_managed.yaml

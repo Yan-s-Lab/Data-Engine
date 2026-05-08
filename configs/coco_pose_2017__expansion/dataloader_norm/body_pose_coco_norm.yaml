@@ -1,0 +1,28 @@
+run:
+  run_id: body_pose_coco_norm
+  artifacts_root: artifacts/runs/yk003/body_pose_coco
+
+dataloader:
+  real_dir: artifacts/datasets/rawdatasets/coco_pose/sub/
+  image_dir: artifacts/datasets/rawdatasets/coco_pose/sub/images
+  label_format: coco
+  label_file: artifacts/datasets/rawdatasets/coco_pose/sub/labels/pose_annotations_single_person_subset.json
+  require_labels: false
+  patterns:
+    - "*.png"
+    - "*.jpg"
+    - "*.jpeg"
+
+  naming:
+    canonicalize_names: true
+    services_id: yk003
+    task_name: body_pose_coco
+    filename_template: ${services_id}__${task_name}__${seq_id_padded}
+    id_width: 4
+    id_start: 1
+    target_image_ext: .jpg
+    materialize_mode: copy
+
+pipeline:
+  steps: [dataloader]
+  resume_from_artifacts: true

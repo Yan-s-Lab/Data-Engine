@@ -1,0 +1,90 @@
+run:
+  run_id: body_pose_coco_filter
+  artifacts_root: artifacts/runs/yk003/body_pose_coco
+
+filter:
+  pipeline:
+    phases:
+      - id: phase1_siglip_logits_filter
+        enabled: true
+        # 可能需要的参数
+      # - id: phase2_roi_filter
+      #   enabled: false
+        # 可能需要的参数...
+      # - id: phase2_weak_model_detectest # 跟据任务去设置
+        # 可能需要的参数...
+  input_manifests: configs/coco_pose_2017__expansion/filter/artifacts/tmp/body_pose_coco_siglip2_input_manifest.jsonl
+  # 用下面的 compared_prompt字段配置这个标注 accept/reject 数据集做阈值计算
+  siglip2_baseline_labeled: artifacts/tmp/siglip2_baseline_labeled.json
+  siglip2_margin_threshold: 0.9245478312174482
+  
+
+  clip:
+    model_id: google/siglip2-so400m-patch16-naflex # siglip2 is better model compare with “clip / siglip...”
+    device: auto
+    compared_prompt: # 具备一定的经验性成分在
+        positive:
+          - a photo contains human
+          - a photo contains person
+          - The person in the photo has a clear torso and normal physiological structure
+          - a photo of one or more people
+          - a real-world photo containing people
+          - a natural human pose in a real-life scene
+          - one or more people with visible body poses
+          - people with distinguishable body positions
+          - a full-body or mostly visible human figure
+          - one or more people with visible arms and legs
+          - a photo suitable for human pose estimation
+          - people in natural standing, walking, or moving poses
+          - a realistic scene with one or more humans visible
+          - a realistic photo of people in natural poses
+          - a natural scene containing people
+        negative:
+          - a photo with no person
+          - a landscape or object without people
+          - a close-up photo of a face
+          - a portrait photo focusing only on the face
+          - a close-up of a hand or fingers
+          - a close-up of legs or feet only
+          - a cropped image showing only part of a person
+          - a body part close-up without the full pose
+          - a person heavily cut off by the image border
+          - a severely occluded person
+          - multiple people heavily overlapping and hard to distinguish
+          - a distorted human body
+          - a person with missing limbs
+          - a person with extra limbs
+          - a cartoon style image
+          - 3d rendered character
+
+  phase2_roi_pose:
+    enabled: true
+    # input_manifest: artifacts/runs/yk003/body_pose_coco/body_pose_coco_filter/filter/splits/accept.jsonl
+    device: auto
+    min_person_score: 0.25
+    min_keypoints: 12
+    keypoint_score_threshold: 0.5
+    min_bbox_area_ratio: 0.05
+    max_bbox_area_ratio: 1.0
+    pose:
+      enabled: true
+      model: third_party/yolo26x-pose.pt
+      conf: 0.25
+      iou: 0.45
+    detection:
+      enabled: false
+      model: yolo11n.pt
+      conf: 0.25
+      iou: 0.45
+    segmentation:
+      enabled: false
+      area_ratio_field: person_mask_area_ratio
+    routing:
+      keypoint_fail_action: uncertain
+      bbox_fail_action: reject
+      no_person_fail_action: reject
+      pose_missing_action: uncertain
+
+pipeline:
+  steps: [filter]
+  # resume_from_artifacts: true
