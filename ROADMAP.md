@@ -1,87 +1,32 @@
-# ROADMAP — Data Engine Paper (Body Pose)
+# ROADMAP - Data Engine
 
-**Goal:** deliver a fair fixed-real-budget experiment for the body-pose data engine. No novel model architecture needed.
+## Goal
 
----
+Keep the public repository focused on the reusable Data Engine: configurable ingestion, generation, filtering, labeling, training, evaluation entry points, and deployment examples.
 
-## Pipeline Status
+## Current Status
 
 | Stage | Status | Entry |
 |---|---|---|
-| DataLoader (norm) | DONE | `ingest/run_dataloader.py` |
-| Control Generation (ComfyUI) | DONE | `synth/run_generate.py` |
-| Filter1 — SigLIP2 semantic margin | DONE | `filter/filter_stages/filter1/main.py` |
-| Filter2 — YOLO pose/ROI gate | DONE | `filter/filter_stages/filter2/main.py` |
-| Annotation — AI auto-label (YOLO pose) | **READY** | `label/run_ai_annotation.py` |
-| Real data prep — fair anchor + holdout split | **READY** | `label/build_coco_yolo_pose.py` |
-| Mixed dataset — fair shared-holdout merge | **READY** | `label/build_mixed_dataset.py` |
-| Training — YOLO11-pose (5 ablations) | **READY TO RUN** | `train/run_yolo11_pose.py` |
-| Eval figures — shared real holdout + summary | **READY TO RUN** | `eval/run_yolo11_pose_eval.py`, `eval/aggregate_pose_ablation_results.py` |
+| DataLoader normalization | Ready | `ingest/run_dataloader.py` |
+| Control generation | Ready | `synth/run_generate.py` |
+| Filter1 SigLIP2 semantic margin | Ready | `filter/filter_stages/filter1/main.py` |
+| Filter2 YOLO pose/ROI gate | Ready | `filter/filter_stages/filter2/main.py` |
+| AI annotation | Ready | `label/run_ai_annotation.py` |
+| Dataset conversion/merge | Ready | `label/build_coco_yolo_pose.py`, `label/build_mixed_dataset.py` |
+| Training | Ready | `train/run_train.py`, `train/run_yolo11_pose.py`, `train/run_yolo11_seg.py` |
+| Evaluation | Ready | `eval/run_eval.py`, `eval/run_yolo11_pose_eval.py`, `eval/run_yolo11_seg_eval.py` |
+| Managed pipeline | Ready | `pipelines/run_managed_pipeline.py`, `pipelines/run_serial_plan.py` |
 
----
+## Public-Repo Priorities
 
-## Next Steps (ordered, minimal)
+1. Keep example configs runnable without private data.
+2. Keep generated artifacts, local service state, model weights, and experiment results out of git.
+3. Improve generic smoke tests for each public pipeline stage.
+4. Document required input/output contracts for each stage.
+5. Keep project-specific analysis, result aggregation, and figure scripts outside this repository.
 
-### Step 1: Materialize datasets
-- Run fair real split:
-  - `python label/build_coco_yolo_pose.py --config configs/coco_pose_2017__expansion/train/body_pose_real_only_prep.yaml`
-- Run filtered synthetic annotation:
-  - `python label/run_ai_annotation.py --config configs/coco_pose_2017__expansion/annotation/body_pose_ai_annotation.yaml`
-- Run raw synthetic annotation:
-  - `python label/run_ai_annotation.py --config configs/coco_pose_2017__expansion/annotation/body_pose_ai_annotation_raw.yaml`
-- Build mixed datasets:
-  - `python label/build_mixed_dataset.py --config configs/coco_pose_2017__expansion/train/body_pose_mixed_prep.yaml`
-  - `python label/build_mixed_dataset.py --config configs/coco_pose_2017__expansion/train/body_pose_mixed_raw_prep.yaml`
+## Artifact Policy
 
-### Step 2: Train five groups
-- `A_real_only`
-- `B_raw_synth_only`
-- `C_filtered_synth_only`
-- `D_real_plus_raw_synth`
-- `E_real_plus_filtered_synth`
-
-All train configs live under `configs/coco_pose_2017__expansion/train/`.
-
-### Step 3: Evaluate on one shared real holdout
-- Run `eval/run_yolo11_pose_eval.py` for all five groups using configs under `configs/coco_pose_2017__expansion/eval/`.
-- Every reported metric must come from `real_test_holdout`.
-
-### Step 4: Aggregate and write paper figures
-- Run:
-  - `python eval/aggregate_pose_ablation_results.py --config configs/coco_pose_2017__expansion/eval/body_pose_ablation_summary.yaml`
-- Produce:
-  - pose `mAP50`
-  - pose `mAP50-95`
-  - box `mAP50`
-  - training composition counts
-
----
-
-## Paper Narrative (key claims to demonstrate)
-
-1. `real + filtered synth` improves over `real-only` under the same real-data budget
-2. `filtered synth` beats `raw synth`, showing the filter cascade adds training value
-3. `real + filtered synth` beats `real + raw synth`, showing filtered augmentation is better than unfiltered augmentation
-4. AI annotation is reusable across raw and filtered synth branches without changing the protocol
-
----
-
-## Artifact Reference
-
-```
-data/
-  coco_pose_2017/          ← real anchor images
-<run_dir>/
-  dataloader/real_manifest.jsonl
-  generate/synth_manifest.jsonl
-  filter/
-    filter1_scores.jsonl
-    splits/{accept,reject,uncertain}.jsonl
-    splits/filter2_{accept,reject,uncertain}.jsonl
-  label/
-    real_train_anchor/
-    real_test_holdout/
-    ai_dataset/
-    real_plus_filtered_synth_dataset/
-    real_plus_raw_synth_dataset/
-```
+Runtime outputs belong under ignored artifact directories such as `artifacts/` or `runs/`.
+The public repo should track source code, generic configs, tests, and documentation only.

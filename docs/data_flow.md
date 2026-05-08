@@ -1,4 +1,4 @@
-# Data Flow — Current State
+# Data Flow - Current State
 
 ## Pipeline
 
@@ -19,13 +19,13 @@ Filter1 (SigLIP2 margin) → filter1_scores.jsonl    DONE
 Filter2 (YOLO pose/ROI) → filter2_scores.jsonl     DONE
   + splits/filter2_{accept,reject,uncertain}.jsonl
   ↓
-Annotation (AI auto-label)                          PARTIAL
-  + filtered-synth ai_dataset done; raw-synth branch not materialized
+Annotation (AI auto-label)                          READY
+  + ai_dataset materialized from accepted synthetic images
   ↓
-Training (YOLO11-pose, fair 5 ablations)            READY TO RUN
-  + legacy real-only / filtered-synth-only reports exist, but are not final fair results
+Training / evaluation                               READY
+  + scripts are config-driven and write reports under run_dir
   ↓
-Shared-holdout eval + paper figures                 TODO
+Managed serial plan                                 READY
 ```
 
 ## Key Artifacts
@@ -37,8 +37,8 @@ Shared-holdout eval + paper figures                 TODO
 | Filter1 | `filter/filter1_scores.jsonl`, `filter/splits/accept.jsonl` |
 | Filter2 | `filter/filter2_scores.jsonl`, `filter/splits/filter2_accept.jsonl` |
 | Annotation | `body_pose_coco_annotation/label/ai_annotations_manifest.jsonl`, `body_pose_coco_annotation/label/ai_dataset/` |
-| Training | fair configs under `configs/coco_pose_2017__expansion/train/`; final five-group reports pending |
-| Eval | shared-holdout configs under `configs/coco_pose_2017__expansion/eval/`; reports pending |
+| Training | config-driven train reports under `<run_dir>/train_yolo_pose/` or `<run_dir>/train/` |
+| Eval | config-driven eval reports under `<run_dir>/eval_yolo_pose/` or `<run_dir>/eval/` |
 
 ## Next Steps
 

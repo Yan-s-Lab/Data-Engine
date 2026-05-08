@@ -5,7 +5,7 @@ run:
 train_yolo:
   # Condition B: synth-only — filter2_accept images + AI pose annotation
   dataset_yaml: artifacts/runs/yk003/body_pose_coco/body_pose_coco_annotation/label/ai_dataset/dataset.yaml
-  model: yolo11s-pose.pt   # downloads automatically; upgrade to yolo11x-pose.pt for final run
+  model: yolo11s-pose.pt
   epochs: 100
   imgsz: 640
   batch: 16

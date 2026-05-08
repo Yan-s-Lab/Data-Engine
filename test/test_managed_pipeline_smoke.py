@@ -17,14 +17,13 @@ _PNG_1X1_BASE64 = (
 
 
 class ManagedPipelineSmokeTest(unittest.TestCase):
-    def test_experiment_stage_registry_and_output_checks(self) -> None:
+    def test_managed_stage_registry_and_output_checks(self) -> None:
         expected_stages = {
             "coco_to_yolo_pose",
             "annotation",
             "build_mixed",
             "train_yolo_pose",
             "eval_yolo_pose",
-            "aggregate_pose_ablation",
         }
         self.assertTrue(expected_stages.issubset(set(STAGE_TO_SCRIPT)))
 

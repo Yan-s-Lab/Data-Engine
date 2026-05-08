@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Build fair mixed YOLO-pose datasets under a shared real evaluation holdout."""
+"""Build mixed YOLO-pose datasets under a shared real evaluation holdout."""
 from __future__ import annotations
 
 import argparse

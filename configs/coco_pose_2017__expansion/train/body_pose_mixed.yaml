@@ -3,7 +3,6 @@ run:
   artifacts_root: artifacts/runs/yk003/body_pose_coco
 
 train_yolo:
-  # Condition C: real + synth (data engine full output) — main paper claim
   # Prerequisite: both real_dataset and ai_dataset must exist
   dataset_yaml: artifacts/runs/yk003/body_pose_coco/body_pose_coco_mixed/label/mixed_dataset/dataset.yaml
   model: yolo11s-pose.pt

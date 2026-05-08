@@ -1,6 +1,6 @@
 ## 1) Summary
-- Make AI pose annotation skip unreadable/corrupt generated images instead of aborting the whole experiment.
-- Needed because the raw synthetic pool can contain corrupt ComfyUI PNG outputs, and one bad image should not stop fair ablation materialization.
+- Make AI pose annotation skip unreadable/corrupt generated images instead of aborting the whole annotation run.
+- Needed because generated image pools can contain corrupt ComfyUI PNG outputs, and one bad image should not stop dataset materialization.
 
 ## 2) Scope
 ### In scope
@@ -61,7 +61,7 @@ Orchestration -> Components -> Core
 - Unit tests:
   - verify prediction errors are recorded compactly.
 - Integration:
-  - rerun raw synthetic annotation through the fair experiment plan.
+  - rerun annotation on a synthetic manifest containing a corrupt image fixture.
 - How to run tests:
   - `conda run -n dataengine python -m unittest discover -s test -p 'test_run_ai_annotation.py'`
 

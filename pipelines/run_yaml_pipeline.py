@@ -36,7 +36,6 @@ STAGE_TO_SCRIPT = {
     "build_mixed": "label/build_mixed_dataset.py",
     "train_yolo_pose": "train/run_yolo11_pose.py",
     "eval_yolo_pose": "eval/run_yolo11_pose_eval.py",
-    "aggregate_pose_ablation": "eval/aggregate_pose_ablation_results.py",
 }
 
 
@@ -92,7 +91,6 @@ def stage_output_ok(stage: str, run_dir: Path, config: Dict[str, Any] | None = N
         "annotation": run_dir / "label" / "ai_annotation_report.json",
         "train_yolo_pose": run_dir / "train_yolo_pose" / "report.json",
         "eval_yolo_pose": run_dir / "eval_yolo_pose" / "report.json",
-        "aggregate_pose_ablation": run_dir / "pose_ablation_summary" / "summary.json",
     }[stage]
     # 只要关键工件存在，即认为该阶段输出通过
     return expected.exists()
