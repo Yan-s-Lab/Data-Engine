@@ -31,8 +31,4 @@ serial_plan:
     - name: filter
       tasks:
         - name: phase1
-          config: test/test-filters/configs/filter1_siglip2_smoke.yaml
-    #     - name: phase2
-    #       config: test/test-filters/configs/filter1_siglip2_smoke.yaml
-    #     - name: phase3
-    #       config: test/test-filters/configs/filter1_siglip2_smoke.yaml
+          config: configs/coco_pose_2017__expansion/filter/body_pose_coco_filter_pipiline.yaml

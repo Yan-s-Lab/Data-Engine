@@ -7,6 +7,15 @@ artifacts/
 minedata/
 runs/
 filter/tmp/
+filter/*.png
+train/val_datasets/
+test/test-filters/
+test/test-generation/config/
+test/test-generation/runs/
+test/test-generation/**/images/
+test/test-generation/**/labels/
+paper/
+figures/
 *.pt
 *.pth
 *.onnx

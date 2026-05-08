@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+import base64
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -11,6 +11,9 @@ import unittest
 from pipelines.run_yaml_pipeline import STAGE_TO_SCRIPT, stage_output_ok
 
 ROOT = Path(__file__).resolve().parents[1]
+_PNG_1X1_BASE64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WnQZt0AAAAASUVORK5CYII="
+)
 
 
 class ManagedPipelineSmokeTest(unittest.TestCase):
@@ -64,13 +67,13 @@ class ManagedPipelineSmokeTest(unittest.TestCase):
         return json.loads(summary_path.read_text(encoding="utf-8"))
 
     def _prepare_raw_dataset(self, temp_root: Path) -> Path:
-        src_dir = ROOT / "test" / "test-generation" / "yk-001_arm_deltoid_muscle_seg" / "images"
         raw_root = temp_root / "raw"
         image_dir = raw_root / "images"
         image_dir.mkdir(parents=True, exist_ok=True)
 
-        for image_path in sorted(src_dir.glob("*.png")):
-            shutil.copy2(image_path, image_dir / image_path.name)
+        for idx in range(3):
+            image_path = image_dir / f"sample_{idx + 1:04d}.png"
+            image_path.write_bytes(base64.b64decode(_PNG_1X1_BASE64))
         return raw_root
 
     def test_managed_pipeline_resume_skip(self) -> None:
