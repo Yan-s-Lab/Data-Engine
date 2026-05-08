@@ -83,5 +83,5 @@ Orchestration -> Components -> Core
 - [x] Code changes implemented
 - [x] Tests added/updated
 - [x] Docs updated
-- [ ] Git commit message: `chore: remove private experiment surface`
-- [ ] Pushed to remote
+- [x] Git commit message: `chore: remove private experiment surface`
+- [x] Pushed to remote
