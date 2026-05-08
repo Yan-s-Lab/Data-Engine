@@ -15,7 +15,7 @@ Agents MUST read and follow:
 2) `docs/design-notes/template.md`  
    - The required Design Note format and content.
 
-3) `./.temp/methods.tex`  
+3) `docs/body_pose_fair_experiment.md`  
    - Primary authority for paper-level methodology when a design decision is disputed.
 
 **Conflict rule:** If `AGENTS.md` conflicts with `docs/architecture/style.md`, `AGENTS.md` wins.  
