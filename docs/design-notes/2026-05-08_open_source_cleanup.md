@@ -79,4 +79,4 @@ Orchestration -> Components -> Core
 - [x] Tests added/updated
 - [x] Docs updated
 - [ ] Git commit message: `chore: clean repository for public release`
-- [ ] Pushed to remote
+- [x] Pushed to remote
